@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# FolderAI launcher — opens the app on a given folder (defaults to Downloads).
+# Used by the Finder Quick Action, but also runnable directly:
+#   folderai ~/Downloads
+set -e
+APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+TARGET="${1:-$HOME/Downloads}"
+
+# Prefer the packaged app (instant launch). Running the binary directly lets the
+# single-instance lock forward the folder to an already-open window.
+APP="$(ls -d "$APP_DIR"/dist/FolderAI-darwin-*/FolderAI.app 2>/dev/null | head -1)"
+if [ -n "$APP" ] && [ -x "$APP/Contents/MacOS/FolderAI" ]; then
+  exec "$APP/Contents/MacOS/FolderAI" "$TARGET"
+fi
+
+# Fallback: dev launch via Electron (slower — only if the app isn't packaged).
+cd "$APP_DIR"
+exec npx electron . "$TARGET"

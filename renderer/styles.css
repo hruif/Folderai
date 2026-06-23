@@ -1,0 +1,287 @@
+:root {
+  --bg: #0f1218;
+  --panel: #171c26;
+  --panel-2: #1e2531;
+  --border: #2a3240;
+  --text: #e6eaf0;
+  --muted: #8b95a7;
+  --accent: #4f8cff;
+  --green: #34c759;
+  --red: #ff5c5c;
+  --amber: #ffb340;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+.brand { display: flex; align-items: center; gap: 12px; }
+.logo { font-size: 26px; }
+h1 { font-size: 18px; margin: 0; }
+.sub { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+
+.badge { padding: 5px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; }
+.badge-unknown { background: #333; color: #ccc; }
+.badge-ok { background: rgba(52,199,89,.15); color: var(--green); }
+.badge-off { background: rgba(255,92,92,.15); color: var(--red); }
+
+.controls { padding: 12px 18px; background: var(--panel); border-bottom: 1px solid var(--border); }
+.row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.row:last-child { margin-bottom: 0; }
+.prompt-row #prompt { flex: 1; }
+
+input[type=text], select {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+#folder { flex: 1; }
+input[readonly] { color: var(--muted); }
+
+button {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+button.danger { background: var(--red); border-color: var(--red); color: #fff; font-weight: 600; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+.ai-toggle { display: flex; align-items: center; gap: 5px; color: var(--muted); white-space: nowrap; }
+
+/* Proposed rename (when "Suggest cleaner filenames" is on). */
+.rename-row { display: flex; align-items: center; gap: 4px; margin-top: 3px; color: var(--green); font-size: 12px; }
+.rename-input { flex: 1; min-width: 0; background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px;
+  color: var(--green); font-size: 12px; padding: 2px 6px; }
+.rename-input:focus { border-color: var(--accent); outline: none; }
+.pv-rename { color: var(--green); font-size: 12px; display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
+.pv-rename-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; } /* truncate the NAME, not the × */
+/* The deny button is always visible (it sits outside the truncating name). */
+.pv-rename-deny { flex-shrink: 0; border: 1px solid var(--border); background: var(--panel-2); color: var(--muted); cursor: pointer; font-size: 13px; line-height: 1; width: 18px; height: 18px; border-radius: 4px; padding: 0; }
+.pv-rename-deny:hover { color: var(--red); border-color: var(--red); }
+.rename-row { display: flex; align-items: center; gap: 6px; } /* keep the list's × beside the input */
+/* Sticky "where am I" breadcrumb at the top of the tree while scrolling. */
+.pv-crumb { position: sticky; top: 0; z-index: 3; background: var(--panel); border-bottom: 1px solid var(--border); padding: 6px 12px; font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pv-crumb.hidden { display: none; }
+
+/* Search box in the toolbar. */
+.search-wrap { display: flex; align-items: center; gap: 8px; }
+#search { width: 280px; max-width: 38vw; background: var(--bg); border: 1px solid var(--border); color: var(--text);
+  border-radius: 8px; padding: 6px 10px; font-size: 13px; font-family: inherit; }
+#search:focus { border-color: var(--accent); outline: none; }
+.search-count { color: var(--muted); font-size: 12px; white-space: nowrap; }
+
+/* "results are provisional" banner shown while the AI run is in progress. */
+.provisional-note td { color: var(--amber); font-size: 12px; padding: 6px 10px; background: rgba(255, 179, 64, 0.08); border-bottom: 1px solid var(--border); }
+
+/* Drag-to-organize in the tree. */
+/* Compact density — tighter rows so more fits on screen. Toggled on <body>. */
+body.compact .pv-folder { padding: 2px 8px; }
+body.compact .pv-file { padding: 1px 8px; gap: 7px; }
+body.compact .pv-file, body.compact .pv-file .fname { font-size: 12px; }
+body.compact tbody td { padding: 3px 8px; font-size: 12px; }
+
+/* Off-screen tree rows skip layout too — big win on large folders. */
+.pv-file, .pv-folder { content-visibility: auto; contain-intrinsic-size: auto 26px; }
+.pv-file[draggable="true"] { cursor: grab; }
+.pv-file.dragging, .pv-folder.dragging { opacity: 0.45; }
+.pv-folder.drop-target { background: rgba(79, 140, 255, 0.18); outline: 1px solid var(--accent); border-radius: 6px; }
+/* Multi-selection highlight (click / ⌘-click in the tree). */
+.pv-file.selected, .pv-folder.selected { background: rgba(79, 140, 255, 0.22); border-radius: 6px; }
+/* Cut (awaiting paste) — dashed + dimmed, like Finder. */
+.pv-file.cut, .pv-folder.cut { opacity: 0.5; outline: 1px dashed var(--muted); border-radius: 6px; }
+/* Inline rename input (replaces the name in place). */
+.inline-rename { background: var(--bg); border: 1px solid var(--accent); color: var(--text); border-radius: 5px; padding: 1px 6px; font: inherit; font-size: 13px; min-width: 160px; }
+/* Right-click context menu. */
+.ctx-menu { position: fixed; z-index: 100; min-width: 170px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 5px; box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5); }
+.ctx-item { padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; white-space: nowrap; }
+.ctx-item:hover { background: var(--accent); color: #fff; }
+.pv-newfolder { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--border); background: var(--panel-2); }
+.pv-newfolder input { flex: 0 1 240px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 5px 9px; font-size: 13px; }
+.pv-newfolder input:focus { border-color: var(--accent); outline: none; }
+.sub-row { font-size: 12px; }
+.dest-label { color: var(--muted); }
+.spacer { flex: 1; }
+
+.summary { display: flex; gap: 10px; padding: 10px 18px; flex-wrap: wrap; background: var(--bg); }
+.summary .pill { background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; }
+.summary .pill b { color: var(--text); }
+.hidden { display: none; }
+
+/* Focused modal pop-up — files stay visible (dimmed) behind it. */
+.ai-gate-overlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(8, 10, 14, 0.55); backdrop-filter: blur(2px); }
+.ai-gate-overlay.hidden { display: none; }
+.ai-gate-card { width: 560px; max-width: 92vw; background: var(--panel); border: 1px solid var(--accent); border-radius: 14px; padding: 20px 22px; box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55); }
+.ai-gate-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+.ai-gate-head strong { font-size: 16px; }
+.ai-gate-info { color: var(--amber); font-size: 12px; }
+/* Options on their own line, then action buttons aligned bottom-right (primary last). */
+.ai-gate-options { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 12px; }
+.ai-gate-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+.ai-gate-actions button { white-space: nowrap; }
+.ai-guidance-wrap { margin-top: 4px; }
+.ai-guidance-wrap.hidden { display: none; }
+.ai-guidance-wrap textarea { display: block; box-sizing: border-box; width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 9px 11px; font-size: 13px; font-family: inherit; line-height: 1.5; resize: vertical; }
+
+/* Settings modal */
+.settings-card { width: 460px; }
+.settings-group { margin-top: 14px; }
+.settings-group h4 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.settings-row { display: flex; align-items: center; gap: 9px; padding: 6px 0; font-size: 14px; }
+.settings-row > span { flex: 1; }
+.settings-row select { margin-left: auto; }
+.settings-help { margin: 2px 2px 6px; font-size: 12px; color: var(--muted); line-height: 1.5; }
+.settings-help em { font-style: normal; color: var(--text); }
+
+/* Header right cluster + gear button */
+.header-right { display: flex; align-items: center; gap: 10px; }
+.icon-btn { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); width: 32px; height: 32px; border-radius: 8px; font-size: 16px; cursor: pointer; line-height: 1; }
+.icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.progress-wrap { display: flex; align-items: center; gap: 10px; padding: 8px 18px; background: var(--bg); }
+.progress-wrap.hidden { display: none; } /* override .progress-wrap's display:flex when hidden */
+.progress-track { flex: 1; height: 8px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.progress-fill { height: 100%; width: 0%; background: var(--accent); transition: width .2s ease; }
+/* Indeterminate (model loading): a sliding stripe so it's clearly "working, not stuck". */
+.progress-fill.indeterminate {
+  transition: none;
+  background: linear-gradient(90deg, transparent 0%, var(--accent) 50%, transparent 100%);
+  background-size: 35% 100%;
+  background-repeat: no-repeat;
+  animation: pv-load 1.1s linear infinite;
+}
+@keyframes pv-load {
+  0% { background-position: -35% 0; }
+  100% { background-position: 135% 0; }
+}
+.progress-label { color: var(--muted); font-size: 12px; white-space: nowrap; min-width: 160px; }
+button.small { padding: 4px 10px; font-size: 12px; }
+
+.toolbar { padding: 8px 18px; background: var(--bg); display: flex; gap: 12px; align-items: center; }
+.view-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.view-toggle .seg { background: var(--panel-2); border: none; border-radius: 0; padding: 6px 14px; color: var(--muted); }
+.view-toggle .seg.active { background: var(--accent); color: #fff; font-weight: 600; }
+
+/* Preview (collapsible destination tree) */
+.preview { padding: 6px 0 20px; }
+.preview.hidden { display: none; }
+.pv-empty { text-align: center; color: var(--muted); padding: 30px; }
+.pv-node.collapsed > .pv-children { display: none; }
+.pv-node.collapsed > .pv-folder .pv-disc { transform: rotate(-90deg); }
+.pv-folder { display: flex; align-items: center; gap: 7px; padding: 6px 8px; cursor: pointer; border-radius: 6px; }
+.pv-folder:hover { background: var(--panel-2); }
+/* Big, obvious click target for expand/collapse (the row itself selects). */
+.pv-disc { flex: none; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center;
+  color: var(--muted); font-size: 14px; transition: transform .12s ease; cursor: pointer; border-radius: 5px; margin: -3px 0; }
+.pv-disc:hover { background: var(--border); color: var(--text); }
+.pv-ficon { font-size: 13px; }
+.pv-folder .pv-label { font-weight: 600; }
+.pv-folder .pv-count { color: var(--muted); font-size: 11px; }
+.pv-quarantine .pv-label { color: var(--red); }
+.pv-new .pv-label { color: var(--green); }
+.pv-badge { font-size: 10px; font-weight: 700; letter-spacing: .04em; padding: 1px 6px; border-radius: 6px; background: rgba(52,199,89,.18); color: var(--green); }
+.pv-file { display: flex; align-items: center; gap: 10px; padding: 4px 8px; border-radius: 6px; }
+.pv-file:hover { background: var(--panel-2); }
+.pv-file.excluded { opacity: .4; }
+.pv-file .fname { flex: 0 1 auto; }
+.pv-file .pv-meta { color: var(--muted); font-size: 11px; }
+.pv-file .pv-controls { margin-left: auto; display: flex; gap: 6px; }
+.pv-file .pv-controls select { padding: 3px 6px; font-size: 12px; max-width: 220px; }
+
+/* Destination chip (opens the folder picker) */
+.dest-chip { display: inline-block; vertical-align: middle; background: var(--panel-2); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 3px 9px; font-size: 12px; cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dest-chip:hover { border-color: var(--accent); color: var(--accent); }
+.dest-chip.dest-keep { color: var(--muted); }
+.dest-chip.dest-del { color: var(--red); border-color: var(--red); }
+.picker-quick { display: flex; gap: 8px; padding: 0 16px 10px; }
+
+/* Folder picker side panel */
+.picker-overlay { position: fixed; inset: 0; z-index: 60; background: rgba(8,10,14,.72); display: flex; justify-content: flex-end; }
+.picker-overlay.hidden { display: none; }
+.picker { width: 380px; max-width: 90vw; height: 100%; background: var(--panel); border-left: 1px solid var(--border); display: flex; flex-direction: column; box-shadow: -16px 0 40px rgba(0,0,0,.4); }
+.picker-head { display: flex; align-items: center; gap: 8px; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.picker-head strong { font-size: 14px; }
+.picker-target { color: var(--muted); font-size: 12px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#picker-filter { margin: 12px 16px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 8px 10px; font-size: 13px; }
+.picker-tree { flex: 1; overflow-y: auto; padding: 0 8px 16px; }
+.pk-empty { color: var(--muted); padding: 16px; text-align: center; }
+.pk-row { display: flex; align-items: center; gap: 6px; padding: 5px 6px; border-radius: 6px; }
+.pk-row.pk-expandable { cursor: pointer; }
+.pk-row:hover { background: var(--panel-2); }
+.pk-row .pk-use { opacity: 0; }            /* reveal "Move here" on hover to reduce clutter */
+.pk-row:hover .pk-use { opacity: 1; }
+.pk-disc { width: 12px; text-align: center; color: var(--muted); font-size: 10px; }
+.pk-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pk-use { padding: 2px 9px; }
+.pk-new { padding: 2px 8px; }
+.sort-label { color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.table-wrap { flex: 1; overflow: auto; padding: 0 18px; }
+/* fixed layout makes columns honor their widths so long reasons wrap instead of
+   pushing the table past the window edge */
+table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+thead th {
+  position: sticky; top: 0;
+  z-index: 2; /* keep the header above scrolling rows and their <select> boxes */
+  background: var(--panel);
+  text-align: left;
+  padding: 9px 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+tbody td { padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; overflow-wrap: anywhere; }
+/* Skip layout/paint for off-screen rows so resizing a big list/tree stays smooth
+   (table-layout:fixed keeps columns stable, so rows can be virtualized safely). */
+tbody tr { content-visibility: auto; contain-intrinsic-size: auto 48px; }
+tbody tr.excluded { opacity: .4; }
+tbody tr.row-delete td.c-name { color: var(--red); }
+.c-inc { width: 52px; text-align: center; }
+.c-cat { width: 30%; }
+.c-reason { width: 34%; }
+.c-cat, .c-reason { overflow: hidden; } /* keep chips/text inside their columns */
+.name-main { font-weight: 600; }
+.name-meta { color: var(--muted); font-size: 11px; }
+.fname { cursor: pointer; }
+.fname:hover { color: var(--accent); text-decoration: underline; }
+.reveal-link { cursor: pointer; color: var(--muted); }
+.reveal-link:hover { color: var(--accent); text-decoration: underline; }
+.ai-tag { font-size: 10px; padding: 1px 6px; border-radius: 6px; background: rgba(79,140,255,.18); color: var(--accent); margin-left: 6px; }
+.empty td { text-align: center; color: var(--muted); padding: 30px; }
+
+td select, td input { width: 100%; padding: 5px 7px; font-size: 12px; }
+
+footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+}
+.status { color: var(--muted); font-size: 12px; }

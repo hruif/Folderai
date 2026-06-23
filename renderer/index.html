@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline';" />
+  <title>FolderAI — Downloads Cleaner</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <span class="logo">🧹</span>
+      <div>
+        <h1>FolderAI</h1>
+        <p class="sub">Local, private downloads cleanup · staging-first</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <div id="ollama-badge" class="badge badge-unknown">checking Ollama…</div>
+      <button id="open-settings" class="icon-btn" title="Settings">⚙</button>
+    </div>
+  </header>
+
+  <section class="controls">
+    <div class="row">
+      <input id="folder" type="text" readonly placeholder="No folder selected" />
+      <button id="choose">Choose folder…</button>
+      <label class="ai-toggle">
+        <input type="checkbox" id="use-ai" checked /> Use AI
+      </label>
+      <button id="scan" class="primary">Scan</button>
+    </div>
+    <div class="row prompt-row">
+      <input id="prompt" type="text"
+        placeholder="Plain-word request, e.g. &quot;keep all PDFs in place&quot; or &quot;delete screenshots&quot;" />
+      <button id="apply-prompt">Apply request</button>
+    </div>
+    <div class="row sub-row">
+      <span class="dest-label" id="dest-summary">Destinations: Downloads, Documents, Desktop</span>
+      <button id="add-location" class="small">+ Add location…</button>
+    </div>
+  </section>
+
+  <section id="summary" class="summary hidden"></section>
+
+  <div id="ai-gate" class="ai-gate-overlay hidden">
+    <div class="ai-gate-card">
+      <div class="ai-gate-head">
+        <strong>Run AI classification?</strong>
+        <span id="ai-gate-info" class="ai-gate-info"></span>
+      </div>
+      <div class="ai-guidance-wrap">
+        <textarea id="ai-guidance" rows="3"
+          placeholder="Optional — tell the AI how you organize, e.g. &quot;put invoices under Documents/Finance, keep installers, file tax docs by year&quot;."></textarea>
+      </div>
+      <div class="ai-gate-options">
+        <label class="ai-toggle"><input type="checkbox" id="ai-rename" /> Suggest cleaner filenames</label>
+        <label class="ai-toggle"><input type="checkbox" id="ignore-cache" /> Re-run fresh (ignore cache)</label>
+      </div>
+      <div class="ai-gate-actions">
+        <button id="ai-skip">Skip — just show my files</button>
+        <button id="ai-start" class="primary">Start AI classification</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div id="settings-overlay" class="ai-gate-overlay hidden">
+    <div class="ai-gate-card settings-card">
+      <div class="ai-gate-head">
+        <strong>Settings</strong>
+        <span class="spacer"></span>
+        <button id="settings-close" class="small">Done</button>
+      </div>
+      <div class="settings-group">
+        <h4>AI runs</h4>
+        <label class="settings-row" title="Local model used for classification.">
+          <span>Model</span>
+          <select id="model"></select>
+        </label>
+        <label class="settings-row">
+          <span>Speed</span>
+          <select id="ai-speed">
+            <option value="1">Light — easiest on your Mac</option>
+            <option value="2">Balanced — recommended</option>
+            <option value="4">Fast — may slow your Mac</option>
+          </select>
+        </label>
+        <p class="settings-help">Higher speed finishes a bit faster (~10–20%) but uses more CPU/GPU — your Mac can run hotter and feel slower for other apps <em>during</em> a run. Memory use is about the same at any speed.</p>
+        <label class="settings-row" title="Remember the folder changes you make and apply them to similar files next time.">
+          <input type="checkbox" id="use-learning" checked /> <span>Learn from my changes</span>
+        </label>
+        <label class="settings-row" title="A second pass that nests related folders under a shared parent (e.g. Poetry/Robert Frost).">
+          <input type="checkbox" id="condense-folders" checked /> <span>Condense related folders</span>
+        </label>
+        <label class="settings-row" title="Only affects an Ollama server this app started — never one you started yourself.">
+          <input type="checkbox" id="stop-ollama" checked /> <span>Stop Ollama on exit</span>
+        </label>
+      </div>
+      <div class="settings-group">
+        <h4>Maintenance</h4>
+        <div class="settings-row">
+          <button id="clear-cache" class="small">Clear AI cache</button>
+          <button id="clear-learning" class="small">Forget learned</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section id="progress-wrap" class="progress-wrap hidden">
+    <div class="progress-track"><div id="progress-fill" class="progress-fill"></div></div>
+    <span id="progress-label" class="progress-label"></span>
+    <button id="stop-ai" class="small">Stop</button>
+  </section>
+
+  <section class="toolbar">
+    <div class="view-toggle">
+      <button id="view-list" class="seg active">List</button><button id="view-preview" class="seg">Preview</button>
+    </div>
+    <button id="new-folder" class="small" title="Create an empty folder, then drag files onto it (Preview)">＋ New folder</button>
+    <button id="collapse-all" class="small" title="Collapse or expand all folders (Preview)">⇕ Collapse all</button>
+    <label class="ai-toggle" title="Tighter rows — see more files at once"><input type="checkbox" id="density" /> Compact</label>
+    <label class="sort-label" id="sort-wrap">View order:
+      <select id="sort">
+        <option value="name" selected>Name (A–Z, as in Finder)</option>
+        <option value="proposed">Proposed plan (grouped by destination)</option>
+        <option value="date">Date modified (newest first)</option>
+        <option value="size">Size (largest first)</option>
+      </select>
+    </label>
+    <span class="spacer"></span>
+    <label class="search-wrap">
+      <input type="search" id="search" placeholder="Search name, type, contents, date…" autocomplete="off" />
+      <span id="search-count" class="search-count"></span>
+    </label>
+  </section>
+
+  <section class="table-wrap">
+    <table id="plan">
+      <thead>
+        <tr>
+          <th class="c-inc">Stage</th>
+          <th class="c-name">Item</th>
+          <th class="c-cat">Destination</th>
+          <th class="c-reason">Reason</th>
+        </tr>
+      </thead>
+      <tbody id="plan-body">
+        <tr class="empty"><td colspan="4">Choose a folder and scan to see a staged plan.</td></tr>
+      </tbody>
+    </table>
+    <div id="preview" class="preview hidden"></div>
+  </section>
+
+  <footer>
+    <div id="status" class="status"></div>
+    <button id="undo" class="hidden">Undo last cleanup</button>
+    <button id="execute" class="danger" disabled>Execute staged changes</button>
+  </footer>
+
+  <!-- Destination folder picker (slide-in side panel) -->
+  <div id="picker-overlay" class="picker-overlay hidden">
+    <aside id="picker" class="picker">
+      <div class="picker-head">
+        <strong>Move to…</strong>
+        <span id="picker-target" class="picker-target"></span>
+        <button id="picker-close" class="small">Close</button>
+      </div>
+      <div class="picker-quick">
+        <button id="pick-keep" class="small">Keep in place</button>
+        <button id="pick-quarantine" class="small">Move to Quarantine</button>
+      </div>
+      <input id="picker-filter" type="text" placeholder="Filter folders…" />
+      <div id="picker-tree" class="picker-tree"></div>
+    </aside>
+  </div>
+
+  <div id="ctx" class="ctx-menu hidden"></div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
