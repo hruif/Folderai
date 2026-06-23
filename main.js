@@ -409,12 +409,18 @@ ipcMain.handle('clear-cache', () => {
 });
 
 ipcMain.handle('apply-prompt', async (_e, { actions, prompt, model }) => {
+  // NOTE: deterministic handling of clear bulk patterns ("all 3-digit codes into
+  // CSE", "delete all screenshots") was built and intentionally REMOVED for now —
+  // we want to gauge the model's real limits on these requests first. Full impl +
+  // re-add steps are in the memory note "deterministic-request-rules". Every
+  // plain-language request currently goes to the model.
   await ollama.ensureServer({ parallelism: getSettings().aiConcurrency });
   sendProgress('Loading the local model…');
   const ready = await ollama.warmupModel(model);
   if (!ready) return { actions, changed: 0, error: `Couldn't start the local model "${model}".` };
   sendProgress(`Applying request via ${model}…`);
-  return applyPrompt(actions, prompt, model, lastScan.destinations);
+  return applyPrompt(actions, prompt, model, lastScan.destinations, null,
+    ({ done, total }) => { if (total > 1) sendProgress(`Applying your request… (${done + 1}/${total})`); });
 });
 
 let lastOperations = []; // moves from the most recent execute, for one-step undo

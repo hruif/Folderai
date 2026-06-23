@@ -25,12 +25,9 @@
     <div class="row">
       <input id="folder" type="text" readonly placeholder="No folder selected" />
       <button id="choose">Choose folder…</button>
-      <label class="ai-toggle">
-        <input type="checkbox" id="use-ai" checked /> Use AI
-      </label>
       <button id="scan" class="primary">Scan</button>
     </div>
-    <div class="row prompt-row">
+    <div id="prompt-row" class="row prompt-row hidden">
       <input id="prompt" type="text"
         placeholder="Plain-word request, e.g. &quot;keep all PDFs in place&quot; or &quot;delete screenshots&quot;" />
       <button id="apply-prompt">Apply request</button>
@@ -98,6 +95,12 @@
         </label>
       </div>
       <div class="settings-group">
+        <h4>Display</h4>
+        <label class="settings-row" title="Tighter rows — see more files at once.">
+          <input type="checkbox" id="density" /> <span>Compact rows</span>
+        </label>
+      </div>
+      <div class="settings-group">
         <h4>Maintenance</h4>
         <div class="settings-row">
           <button id="clear-cache" class="small">Clear AI cache</button>
@@ -119,7 +122,6 @@
     </div>
     <button id="new-folder" class="small" title="Create an empty folder, then drag files onto it (Preview)">＋ New folder</button>
     <button id="collapse-all" class="small" title="Collapse or expand all folders (Preview)">⇕ Collapse all</button>
-    <label class="ai-toggle" title="Tighter rows — see more files at once"><input type="checkbox" id="density" /> Compact</label>
     <label class="sort-label" id="sort-wrap">View order:
       <select id="sort">
         <option value="name" selected>Name (A–Z, as in Finder)</option>

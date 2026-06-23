@@ -89,7 +89,7 @@ function sortedActions() {
 const $ = (id) => document.getElementById(id);
 const folderInput = $('folder');
 const modelSelect = $('model');
-const useAI = $('use-ai');
+let aiAvailable = false; // set from Ollama status — replaces the old "Use AI" toggle
 const planBody = $('plan-body');
 const tableWrap = document.querySelector('.table-wrap');
 const planTable = $('plan');
@@ -243,7 +243,7 @@ async function refreshOllama() {
     const preferred = status.models.find((m) => /llama3\.2:3b/.test(m))
       || status.models.find((m) => /3b|1b/.test(m)) || status.models[0];
     if (preferred) modelSelect.value = preferred;
-    useAI.disabled = false;
+    aiAvailable = true;
     modelSelect.disabled = false;
   } else {
     badge.textContent = status.installed
@@ -251,8 +251,7 @@ async function refreshOllama() {
       : 'Ollama not installed — using rules only';
     badge.className = 'badge badge-off';
     badge.title = 'Click to retry';
-    useAI.checked = false;
-    useAI.disabled = true;
+    aiAvailable = false;
     modelSelect.disabled = true;
   }
 }
@@ -320,6 +319,8 @@ async function render() {
   $('sort-wrap').classList.toggle('hidden', preview); // sort applies to the list only
   if (preview) await renderPreview(); else renderList();
   if (st && tableWrap.scrollTop !== st) tableWrap.scrollTop = st; // keep the view put on in-place edits
+  // The plain-language request box only makes sense once there's a plan to refine.
+  $('prompt-row').classList.toggle('hidden', !state.actions.length);
   persistPlan(); // keep the on-disk plan in sync with any edits
 }
 
@@ -1130,7 +1131,7 @@ scanBtn.addEventListener('click', async () => {
 
     // Gate the expensive AI pass: show the time cost and let the user add
     // guidance before committing.
-    if (useAI.checked && !useAI.disabled && fileCount > 0) {
+    if (aiAvailable && fileCount > 0) {
       // Don't show the rule-based plan — AI would just overwrite it. Hold the
       // list back behind a placeholder until the user decides.
       awaitingDecision = true;
@@ -1250,7 +1251,7 @@ $('apply-prompt').addEventListener('click', async () => {
   const prompt = $('prompt').value.trim();
   if (!prompt) return;
   if (!state.actions.length) { setStatus('Scan a folder first.'); return; }
-  if (useAI.disabled) { setStatus('Ollama offline — natural-language requests need a local model.'); return; }
+  if (!aiAvailable) { setStatus('Ollama offline — natural-language requests need a local model.'); return; }
   setStatus('Thinking…');
   try {
     const res = await window.api.applyPrompt({
@@ -1258,7 +1259,9 @@ $('apply-prompt').addEventListener('click', async () => {
     });
     state.actions = res.actions;
     render();
-    setStatus(res.error || `Applied request — ${res.changed} item(s) updated. Review before executing.`);
+    if (res.error) setStatus(res.error);
+    else if (res.changed) setStatus(`Applied request — ${res.changed} item(s) updated. Review before executing.`);
+    else setStatus('No items matched that request — try rephrasing (e.g. "move all PDFs into Finance", "delete all screenshots").');
   } catch (err) {
     setStatus(`Request failed: ${err.message}`);
   }
