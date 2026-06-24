@@ -159,7 +159,7 @@ function createWindow() {
   win = new BrowserWindow({
     width: 1180,
     height: 820,
-    title: 'Folderai — Downloads Cleaner',
+    title: 'Folderai',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
