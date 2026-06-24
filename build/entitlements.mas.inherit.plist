@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  CHILD/INHERIT entitlements for the nested executables — the Electron Helper apps
+  (GPU / Renderer / Plugin), the bundled ocr-helper, and the node-llama-cpp .node.
+  These inherit the parent's sandbox. This is what fixes the "sandbox initialization
+  failed / GPU process exited" child crashes seen in the spike (where the helpers were
+  unsigned). allow-jit is included because the renderer helper runs V8.
+-->
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.app-sandbox</key>
+  <true/>
+  <key>com.apple.security.inherit</key>
+  <true/>
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+</dict>
+</plist>
