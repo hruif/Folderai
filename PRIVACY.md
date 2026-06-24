@@ -1,6 +1,6 @@
 # Folderai — Privacy Policy
 
-_Last updated: <FILL DATE>_
+_Last updated: 24 June 2026_
 
 Folderai is built to keep your files private. **Everything happens on your Mac.**
 
@@ -29,4 +29,4 @@ Folderai uses the open-source **Llama 3.2** model (© Meta Platforms, Inc.) for 
 classification. The model runs locally; it does not communicate with Meta or anyone else.
 
 ## Contact
-Questions about privacy: <FILL SUPPORT EMAIL>.
+Questions about privacy: admin@xintechllc.com.
