@@ -7,7 +7,7 @@ let state = {
   destinations: [],  // candidate destination folders across locations
   extraRoots: [],    // user-added destination root directories
   sort: 'name',      // default to Finder's default order (name A–Z)
-  view: 'list',      // 'list' (table) | 'preview' (destination tree)
+  view: 'preview',   // 'preview' (grouped destination tree, default) | 'list' (flat table)
   folderLabel: '~',  // scanned folder's display label (tree root)
   collapsed: new Set(), // tree folder labels the user has collapsed
   existsCache: {},   // label -> bool, so we don't re-check folder existence every render
@@ -240,7 +240,7 @@ async function restorePlan() {
   state.destinations = saved.destinations || [];
   state.userFolders = saved.userFolders || [];
   state.sort = saved.sort || 'name';
-  state.view = saved.view || 'list';
+  state.view = saved.view || 'preview';
   if (state.folder) folderInput.value = state.folder;
   $('sort').value = state.sort;
   awaitingDecision = false;
@@ -437,7 +437,7 @@ function segmentsFor(a) {
 // with not-yet-existing folders flagged NEW. Editing controls live on each file.
 async function renderPreview() {
   if (!state.actions.length) {
-    previewEl.innerHTML = '<div class="pv-empty">No items found.</div>';
+    previewEl.innerHTML = `<div class="pv-empty">${state.folder ? 'No items found.' : 'Choose a folder and scan to see the plan.'}</div>`;
     summary.classList.add('hidden'); executeBtn.disabled = true; return;
   }
   // The folder tree reshuffles when the final organize/consolidation pass runs, so
@@ -1289,7 +1289,7 @@ async function runAI() {
     aiRunning = false;   // clear before hide/render so late events are ignored
     hideProgress();
     scanBtn.disabled = false;
-    render();            // refresh Execute button now that the run is done
+    setView('preview');  // settle into the grouped folder view now the run is done
   }
 }
 
