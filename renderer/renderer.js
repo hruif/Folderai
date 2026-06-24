@@ -1157,25 +1157,42 @@ function estimateMinutes() {
 //  - SEEDED from the upfront estimate so it starts conservative, and
 //  - clamped: it drops freely toward the truth but can only creep UP gently — never a jump.
 const ETA_PAD = 1.3;
-const ETA_MIN_FILES = 10; // calibrate over the first ~10 freshly-classified files…
+const ETA_MIN_UNITS = 8;  // measure this much WORK (size/type-weighted), not a file count…
 const ETA_MIN_SECS = 5;   // …and at least this long, before showing a number
-let etaT0 = 0;            // time of first model progress (cache burst excluded)
-let etaD0 = 0;            // modelDone at that point
+let etaT0 = 0;            // time of first model classification (cache burst excluded)
+let etaW0 = 0;           // model work-units done at that point
 let etaShown = Infinity;  // last displayed seconds; Infinity = not calibrated yet
 let runStartedAt = 0;
-// Measure the ACTUAL post-warmup rate over the first ~10 files, then project from it —
-// no stale seed (which was off 2-3x). Show "estimating…" until then; the first real
-// number is the measured one, after which it stays stable (drops freely, creeps up gently).
+let etaCum = [0];        // prefix sums of per-file work units, in scan order (files only)
+// Per-file "work" mirrors fileUnits: base 1 (images weigh more for OCR) + a size
+// surcharge up to the parse cap. Cumulative so we can read off work done by any count.
+function buildEtaUnits() {
+  etaCum = [0];
+  for (const a of state.actions) {
+    if (a.isDir) continue;
+    const base = IMAGE_EXTS_RE.test(a.name) ? IMAGE_WEIGHT : 1;
+    const size = a.size || 0;
+    const surcharge = size > PARSE_CAP_BYTES ? 0 : (size / PARSE_CAP_BYTES) * SIZE_SURCHARGE_MAX;
+    etaCum.push(etaCum[etaCum.length - 1] + base + surcharge);
+  }
+}
+const unitsAt = (d) => etaCum[Math.max(0, Math.min(d, etaCum.length - 1))];
+// Project by remaining WORK, not file count — so a burst of tiny files doesn't fool us
+// into thinking the run is fast, and we don't show a number until enough actual work has
+// been measured. First number shown is the measured one; then it drops freely / creeps up.
 function computeEta(done, total, hits) {
-  const md = Math.max(0, done - (hits || 0)); // files actually classified (past the cache burst)
+  const h = hits || 0;
+  const md = Math.max(0, done - h);
   const now = Date.now();
-  if (md >= 1 && !etaT0) { etaT0 = now; etaD0 = md; }
+  if (md >= 1 && !etaT0) { etaT0 = now; etaW0 = unitsAt(done) - unitsAt(h); }
   if (etaT0) {
     const dT = (now - etaT0) / 1000;
-    const dD = md - etaD0;
-    if (dT >= ETA_MIN_SECS && dD >= ETA_MIN_FILES) {
-      const rate = dD / dT;                                 // measured, post-warmup
-      const live = ((total - done) / rate) * ETA_PAD;       // padded — lean slightly high
+    const wNow = unitsAt(done) - unitsAt(h);                // model work-units done so far
+    const dW = wNow - etaW0;
+    if (dT >= ETA_MIN_SECS && dW >= ETA_MIN_UNITS) {
+      const rate = dW / dT;                                 // work-units per second
+      const remaining = Math.max(0, (unitsAt(total) - unitsAt(h)) - wNow);
+      const live = (remaining / rate) * ETA_PAD;            // padded — lean slightly high
       if (etaShown === Infinity) etaShown = live;           // first real measurement — trust it
       else if (live < etaShown) etaShown = live;            // drop freely toward the truth
       else etaShown = Math.min(live, etaShown * 1.1 + 5);   // creep up gently — no spikes
@@ -1235,9 +1252,10 @@ async function runAI() {
   const guidance = $('ai-guidance').value;
   const fileCount = state.actions.filter((a) => !a.isDir).length;
   aiRunning = true;
-  // Start uncalibrated ("estimating…"); computeEta measures the real rate over the
-  // first ~10 files instead of trusting a stale seed that was off 2-3x.
-  etaT0 = 0; etaD0 = 0;
+  // Start uncalibrated ("estimating…"); computeEta measures the real WORK rate (size/
+  // type-weighted) over the first batch instead of trusting a stale seed that was off 2-3x.
+  buildEtaUnits();
+  etaT0 = 0; etaW0 = 0;
   etaShown = Infinity;
   runStartedAt = Date.now(); // for full-wall-clock calibration of the learned rate
   state.selected.clear();    // a new plan invalidates any tree selection
