@@ -1328,7 +1328,7 @@ $('add-location').addEventListener('click', async () => {
   if (!dir) return;
   if (!state.extraRoots.includes(dir)) state.extraRoots.push(dir);
   $('dest-summary').textContent =
-    `Destinations: Downloads, Documents, Desktop${state.extraRoots.length ? ', ' + state.extraRoots.join(', ') : ''}`;
+    `Files into: Downloads, Documents, Desktop${state.extraRoots.length ? ', ' + state.extraRoots.join(', ') : ''}`;
   setStatus(`Added destination location: ${dir}. Re-scan to include its folders.`);
 });
 
