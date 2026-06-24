@@ -96,17 +96,6 @@ const tableWrap = document.querySelector('.table-wrap');
 const planTable = $('plan');
 const previewEl = $('preview');
 const summary = $('summary');
-// The per-type breakdown in the summary is collapsed by default; this tracks its state.
-// Delegated so it survives the summary being re-rendered.
-let summaryOpen = false;
-summary.addEventListener('click', (e) => {
-  const t = e.target.closest('#sum-toggle');
-  if (!t) return;
-  summaryOpen = !summaryOpen;
-  const detail = summary.querySelector('.summary-detail');
-  if (detail) detail.classList.toggle('hidden', !summaryOpen);
-  t.textContent = summaryOpen ? 'Hide ▴' : 'Details ▾';
-});
 const statusEl = $('status');
 const executeBtn = $('execute');
 const badge = $('ollama-badge');
@@ -310,19 +299,15 @@ function renderSummary() {
   }
   const files = a.length - folders;
   summary.classList.remove('hidden');
-  // Minimal by default: just the scale, with the per-type breakdown tucked behind "Details".
-  const fileWord = `${files} file${files !== 1 ? 's' : ''}${folders ? ` · ${folders} folder${folders !== 1 ? 's' : ''}` : ''}`;
-  const bits = [];
-  if (counts.group) bits.push(`<b>${counts.group}</b> to organize`);
-  if (counts.delete) bits.push(`<b style="color:var(--red)">${counts.delete}</b> to remove`);
-  if (dupes) bits.push(`<b>${dupes}</b> duplicate${dupes > 1 ? 's' : ''}`);
-  if (counts.keep) bits.push(`<b>${counts.keep}</b> left alone`);
-  summary.innerHTML =
-    `<span class="summary-line">${fileWord}${aiRunning ? ' · <span style="color:var(--amber)">reviewing…</span>' : ''}</span>`
-    + (bits.length
-      ? `<button id="sum-toggle" class="summary-toggle">${summaryOpen ? 'Hide ▴' : 'Details ▾'}</button>`
-        + `<div class="summary-detail${summaryOpen ? '' : ' hidden'}">${bits.join(' · ')}</div>`
-      : '');
+  // Always-visible breakdown pills (de-jargoned labels).
+  const pill = (txt, color) => `<span class="pill"${color ? ` style="color:${color}"` : ''}>${txt}</span>`;
+  const parts = [pill(`<b>${files}</b> file${files !== 1 ? 's' : ''}${folders ? ` · <b>${folders}</b> folders` : ''}`)];
+  if (counts.group) parts.push(pill(`<b>${counts.group}</b> to organize`, 'var(--accent)'));
+  if (counts.delete) parts.push(pill(`<b>${counts.delete}</b> to remove`, 'var(--red)'));
+  if (dupes) parts.push(pill(`<b>${dupes}</b> duplicate${dupes > 1 ? 's' : ''}`));
+  if (counts.keep) parts.push(pill(`<b>${counts.keep}</b> left alone`));
+  if (aiRunning) parts.push(pill('reviewing…', 'var(--amber)'));
+  summary.innerHTML = parts.join('');
   // Never allow executing while the AI is mid-run (the plan is still changing).
   executeBtn.disabled = aiRunning || awaitingDecision || staged === 0;
   executeBtn.textContent = staged ? `Clean up · ${staged} change${staged !== 1 ? 's' : ''}` : 'Clean up';
