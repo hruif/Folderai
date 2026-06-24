@@ -6,6 +6,11 @@ const os = require('os');
 const fs = require('fs');
 const { execFile, execFileSync } = require('child_process');
 
+// The App Store (sandboxed) build ships an `inprocess.flag` so the app uses the
+// in-process llama.cpp backend instead of the external Ollama server. Detect it HERE,
+// before ./src/inference is required (which reads FA_BACKEND at load time).
+try { if (fs.existsSync(path.join(process.resourcesPath || '', 'inprocess.flag'))) process.env.FA_BACKEND = 'llama'; } catch { /* */ }
+
 // ---- Crash safety net ----------------------------------------------------
 // Electron's main process exits on an unhandled promise rejection or uncaught
 // exception. Some dependencies (pdfjs under pdf-parse, the OCR helper) can emit
@@ -74,6 +79,22 @@ const { loadLearning, clearLearning, recordCorrections } = require('./src/learni
 const { loadSettings, saveSettings, DEFAULTS } = require('./src/settings');
 const { detectFinderSort } = require('./src/finderSort');
 const ollama = require('./src/inference'); // swappable: system Ollama (dev) or in-process llama.cpp (App Store)
+const modelDelivery = require('./src/model');
+
+// In-process build: ensure our own gguf exists (copy from a local Ollama blob, or
+// download) and point the backend at it — before the first model load. No-op for the
+// Ollama backend. Memoized so concurrent callers share one acquisition.
+let modelReady = null;
+function prepareModel(send) {
+  if (process.env.FA_BACKEND !== 'llama') return Promise.resolve();
+  if (process.env.FA_GGUF && fs.existsSync(process.env.FA_GGUF)) return Promise.resolve();
+  if (!modelReady) {
+    modelReady = modelDelivery.ensureModel(app.getPath('userData'), ({ phase, pct }) => send && send(`${phase}… ${pct}%`))
+      .then((mp) => { process.env.FA_GGUF = mp; })
+      .catch((e) => { modelReady = null; throw e; });
+  }
+  return modelReady;
+}
 
 // Persisted settings, loaded once userData is available.
 let settings = { ...DEFAULTS };
@@ -336,6 +357,9 @@ ipcMain.handle('classify-ai', async (_e, { actions, model, guidance, ignoreCache
   // there's nothing for the model to do — skip loading it entirely (instant re-run).
   const needModel = modelNeeded(actions, c, guidance || '', !!ignoreCache);
   if (needModel) {
+    // In-process build: fetch/locate our own gguf before loading it (first run only).
+    try { await prepareModel((m) => sendProgress(m)); }
+    catch (e) { return { actions, cancelled: false, hits: 0, classified: 0, error: `Couldn't prepare the local model: ${e.message}` }; }
     await ollama.ensureServer({ parallelism: concurrency });
     // Wait until the model can actually serve /api/chat (a cold server 404s during
     // init). Otherwise the first concurrent batches error and the run silently keeps
