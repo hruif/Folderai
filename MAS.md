@@ -1,7 +1,9 @@
 # Mac App Store submission
 
-Everything code-side is done. This is the checklist for the parts only you can do
-(they need your Apple Developer account), plus how to build + sign + upload.
+**Status (2026-06-24): the build + sign + upload pipeline works end-to-end.** The first build
+(`2026.0624.1559`, v1.0.0, App Apple ID 6783997657) is uploaded and in TestFlight. This is the
+checklist for the account-side parts plus how to build + sign + upload. See `APPSTORE.md` for the
+listing/metadata + TestFlight/review flow, and `HANDOFF.md` for the architecture.
 
 ## What you provide (one-time setup in the Apple Developer portal)
 
@@ -21,23 +23,48 @@ Everything code-side is done. This is the checklist for the parts only you can d
 ## Build + sign + package
 
 ```bash
-export APPLE_TEAM_ID="AB12CD34EF"
-export MAS_APP_CERT="3rd Party Mac Developer Application: Your Name (AB12CD34EF)"
-export MAS_INSTALLER_CERT="3rd Party Mac Developer Installer: Your Name (AB12CD34EF)"
-export PROVISION_PROFILE="$HOME/path/to/embedded.provisionprofile"
+export APPLE_TEAM_ID="Y97FTNGTB8"
+export MAS_APP_CERT="Apple Distribution: Xintech LLC (Y97FTNGTB8)"          # the modern unified cert; "3rd Party Mac Developer Application" also works
+export MAS_INSTALLER_CERT="3rd Party Mac Developer Installer: Xintech LLC (Y97FTNGTB8)"
+export PROVISION_PROFILE="$HOME/Downloads/Folderai_Mac_App_Store.provisionprofile"
 
 scripts/sign-mas.sh
 ```
 
-This precompiles the OCR helper, builds the **mas** Electron target with `--no-asar`,
-embeds the profile, bakes your Team ID into `build/entitlements.mas.plist`, signs the
-app + every nested binary (Electron helpers, `ocr-helper`, node-llama-cpp `.node`) with
-the inherit entitlements, and produces a signed `Folderai-<version>.pkg`.
+This precompiles the OCR helper, bundles the gguf, builds the **mas** Electron target with
+`--no-asar`, sets `LSMinimumSystemVersion 12.0`, embeds the profile, bakes your Team ID into
+`build/entitlements.mas.plist`, **strips `com.apple.quarantine`**, signs via
+`scripts/sign-app.mjs` (@electron/osx-sign's programmatic `sign()`), and produces a signed
+`Folderai-<version>.pkg`. Set `FA_BUILD` to override the auto date-based `CFBundleVersion`.
+
+Signing uses the **programmatic API**, not the CLI: @electron/osx-sign 2.x dropped the
+`--entitlements` CLI flag (and `npx @electron/osx-sign` can't resolve its `electron-osx-sign`
+bin). `sign-app.mjs` passes our parent entitlements to the main app; `preAutoEntitlements`
+auto-adds the team-identifier + application-groups from the profile; helpers fall back to
+osx-sign's default child (app-sandbox + inherit).
 
 ## Upload
 
 - **Transporter.app** (App Store, easiest): drag in the `.pkg`.
-- or CLI: `xcrun altool --upload-app --type osx --file Folderai-*.pkg --apiKey <KEY_ID> --apiIssuer <ISSUER_ID>`
+- or CLI: `xcrun altool --upload-app --type osx --file Folderai-*.pkg --username <appleid> --password <app-specific-pw>`
+  (or `--apiKey <KEY_ID> --apiIssuer <ISSUER_ID>` with an App Store Connect API key)
+
+**2FA gotcha:** your *regular* Apple ID password is rejected as "account or password incorrect."
+Use an **app-specific password** (appleid.apple.com → Sign-In and Security → App-Specific
+Passwords) or an ASC API key. `altool` reporting "UPLOAD SUCCEEDED" only means it transferred —
+Apple's post-processing emails any rejections minutes later.
+
+## Validation rejections we hit (and how they're fixed in `sign-mas.sh`)
+
+Apple validates **after** upload and rejects one issue at a time — expect to iterate:
+1. **No bundle id in a nested bundle** — the legacy `finder/*.workflow` → now `finder/` (and
+   `docs/`) are excluded from the package.
+2. **arm64 without x86_64** — arm64-only is only allowed if the deployment target is 12.0+ →
+   `LSMinimumSystemVersion` is set to `12.0` (we ship Apple-Silicon-only; no Intel slice).
+3. **ITMS-91109 `com.apple.quarantine`** — files downloaded via a browser (the provisioning
+   profile from ~/Downloads) carry it → `xattr -cr "$APP"` runs **before** signing.
+4. **Reused build number** — a rejected `CFBundleVersion` can't be re-uploaded → it's now
+   date-based and increments every run.
 
 Then finish the listing in App Store Connect and submit for review.
 

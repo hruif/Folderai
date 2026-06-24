@@ -3,6 +3,10 @@
 Build/sign mechanics live in **MAS.md**. This is the end-to-end path to TestFlight and
 review, plus draft metadata so you can fill App Store Connect quickly.
 
+> **Status (2026-06-24):** build `2026.0624.1559` (v1.0.0) is **uploaded and in TestFlight**.
+> Signing + upload pipeline works. Remaining for *store review*: the `mas` app icon, screenshots,
+> and publishing the privacy URL (GitHub Pages). TestFlight needs none of those.
+
 ---
 
 ## 0. Readiness checklist
@@ -62,13 +66,17 @@ Built with Llama.
 
 ---
 
-## 2. Build, sign, upload
+## 2. Build, sign, upload  ✅ working
 
 Per MAS.md, with your credentials set:
 ```bash
-scripts/sign-mas.sh        # → signed Folderai-1.0.0.pkg (bundles model + icon if present)
+scripts/sign-mas.sh        # → /tmp/folderai-mas/Folderai-1.0.0.pkg (model + entitlements, quarantine stripped)
+xcrun altool --upload-app --type osx --file /tmp/folderai-mas/Folderai-1.0.0.pkg \
+  --username "<appleid>" --password "<app-specific-password>"
 ```
-Upload the `.pkg` with **Transporter** (or `xcrun altool --upload-app`).
+Or drag the `.pkg` into **Transporter**. Use an **app-specific password** (2FA rejects the
+regular one). Each re-upload gets a fresh date-based build number automatically. See MAS.md for
+the four validation rejections we already fixed in the script.
 
 ---
 

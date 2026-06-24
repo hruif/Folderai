@@ -1,120 +1,164 @@
 # Folderai — Handoff
 
-Privacy-first desktop app (Electron) that cleans up a Downloads folder using a
-**local Ollama model**. Everything runs on-device. Staging-first: nothing
-touches disk until the user clicks Execute.
+Privacy-first macOS app (Electron) that tidies messy folders (Downloads, and any folder)
+with a **local, on-device AI model**. Everything runs on-device — nothing is uploaded.
+**Staging-first**: nothing touches disk until the user clicks "Clean up", and **nothing is
+ever deleted** — removals go to a Quarantine folder with one-click Undo.
 
-## Run
+---
 
-```bash
-npm install
-npm start            # dev run
-npm run package      # build dist/Folderai-darwin-<arch>/Folderai.app (instant launch)
-```
+## Current status (2026-06-24)
 
-`@electron/packager` builds an unsigned `.app` (host arch). `bin/folderai` prefers
-that packaged app and falls back to `npx electron .`. Single-instance lock in
-main.js forwards a folder to an already-open window (`second-instance`).
+**The first Mac App Store build is uploaded and in TestFlight processing** — build
+`2026.0624.1559`, version 1.0.0, App Apple ID 6783997657, bundle `com.xintechllc.folderai`
+(Team `Y97FTNGTB8`, Xintech LLC). The full signing + upload pipeline works end-to-end.
 
-Requires [Ollama](https://ollama.com) installed with a model pulled
-(`ollama pull llama3.2:3b`). The app **auto-starts the Ollama server** itself, so
-it doesn't need to be running beforehand. Falls back to rules-only if Ollama is
-absent. Dev machine already has `llama3.2:3b`, `llama3.2:1b`, `deepseek-r1:7b`.
+- ✅ In-process inference (no external Ollama) — sandbox-proven
+- ✅ App sandbox + entitlements + signing pipeline (`scripts/sign-mas.sh`)
+- ✅ Model bundled in the app (offline, no first-run download)
+- ✅ No-deletion guarantee (quarantine + Undo), protected folders, folder grants
+- ✅ Uploaded to App Store Connect; cleared all four validation rejections (see below)
 
-## How it works (pipeline)
+**Pending before *store review*** (TestFlight doesn't need these):
+1. **App icon doesn't apply on the `mas` packager target** — `build/icon.icns` (a placeholder
+   broom mark) embeds fine on the regular `darwin` build but `electron-packager` skips it on
+   `mas` (warns `…with extension ".icon"`). Unsolved; required for store review.
+2. **Store metadata + screenshots** — drafts in `APPSTORE.md`; Mac screenshots must be exactly
+   1280×800 / 1440×900 / 2560×1600 / 2880×1800.
+3. **Privacy-policy URL** — `docs/privacy.html` is ready; enable GitHub Pages (Settings → Pages
+   → main `/docs`) to publish `https://hruif.github.io/Folderai/privacy.html`.
 
-1. **Scan** (`src/scanner.js`) — reads top level of the chosen folder (non-recursive).
-   Also `gatherDestinations()` collects candidate destination folders across
-   roots (Downloads, Documents, Desktop + user-added), one level deep, with a
-   shallow layout summary per folder (`subfolders-only` / `files-only` / `mixed`).
-2. **Rule-based plan** (`src/classifier.js` + `planByRules` in `src/planner.js`) —
-   instant. Only flags obvious junk/temp/empty/installers for **delete**;
-   everything else defaults to **keep**. Rules deliberately do NOT impose
-   type-buckets (that broke the user's existing organization).
-3. **AI refinement** (`refineWithModel`) — optional, gated behind a modal with a
-   compute-time estimate + optional guidance text. Classifies **only loose files**
-   (skips folders). Runs in batches of 12 but **streams** the model response
-   (`ollama.chatStream` + `makeItemStreamer` incremental JSON parser), so each
-   file is revealed one-by-one as the model emits it (~0.5s apart) at full batch
-   speed — NOT 12 at once. For each file the model picks a destination *label*
-   among the real folders, or keep/delete/new. If routed into a folder that has
-   subfolders, `resolveDeepDest()` does an on-demand **deep drill** (one more
-   model call) to sharpen the destination. Live progress bar with an **adaptive
-   ETA** (sliding-window throughput in the renderer) + working **Stop** (aborts
-   in-flight request via AbortController). 1-by-1 (non-batched) was measured ~5×
-   slower, hence batch+stream.
-4. **Plain-word prompts** (`applyPrompt`) — edits the staged plan via the model,
-   respecting existing destinations.
-5. **Execute** (`src/executor.js`) — moves files into destinations (absolute
-   `destPath` for cross-location, else relative new folder inside scanned folder).
-   **Deletes go to `_CleanupQuarantine/`** with a `restore-manifest.json` (never
-   permanent). Cross-device safe, collision-safe naming, traversal guards.
+---
 
-## Key design decisions (don't regress these)
+## Two backends, one switchboard
 
-- **Staging-first** — every change is a reviewable action; Execute is the only
-  thing that touches disk.
-- **Rules never impose structure**; the model organizes using the user's REAL
-  folders across locations. Files are NEVER dropped naked into a `subfolders-only`
-  folder (drill picks/creates a subfolder).
-- **Deletion guardrail** — the AI may move/keep freely but may NOT invent
-  deletions; an AI "delete" is only honored if the deterministic rules already
-  flagged it. Explicit "delete X" prompts still work.
-- **AI result cache** (`src/cache.js`) — keyed by file path+size+mtime+guidance,
-  persisted in userData. Unchanged files reused instantly; only misses hit the
-  model. Auto-pruned on load; "Clear AI cache" button + "Re-run fresh" toggle.
-- **Auto-managed Ollama** (`src/ollama.js` `ensureServer`/`stopServer`) — app
-  starts the server if down; stops it on quit ONLY if the app started it AND the
-  "Stop Ollama on exit" setting is on (`src/settings.js`, persisted).
+`src/inference.js` selects the inference backend:
+- **In-process (App Store):** `src/llama.js` — `node-llama-cpp` (linked llama.cpp, no server/
+  subprocess/binary → sandbox-compatible). Active when `FA_BACKEND=llama`. `main.js` sets this
+  when it detects a bundled `inprocess.flag` (added by `scripts/build.sh inprocess` and
+  `scripts/sign-mas.sh`). Metal GPU offload; sequence pool for concurrency; clean `dispose()`
+  on quit (fixes a quit crash — the Metal context must be torn down before exit).
+- **Ollama (dev default):** `src/ollama.js` — auto-starts/stops a local Ollama server. Used in
+  `npm start` dev runs. Requires `ollama pull llama3.2:3b`.
+
+The model is **llama3.2:3b** (1B was too weak — mis-routes/mis-deletes). The 3B is still
+imperfect on routing/compound prompts; the staging UI is the safety net. For MAS the gguf is
+bundled at `Resources/models/llama3.2-3b.gguf` (`src/model.js` prefers the bundled copy;
+falls back to copying a local Ollama blob, or `FA_MODEL_URL` download).
+
+## Pipeline
+
+1. **Scan** (`src/scanner.js`) — top level of the chosen folder + `gatherDestinations()` across
+   roots (Downloads/Documents/Desktop + user-added), one level deep with a layout summary.
+2. **Rule plan** (`src/classifier.js` + `planByRules`) — instant; flags only obvious junk/
+   installers for removal, everything else **keep**. Rules never impose type-buckets.
+3. **AI refinement** (`refineWithModel`) — gated behind a modal with a time estimate + optional
+   guidance. Classifies loose files only, batched + streamed (revealed one-by-one). Routes files
+   into the user's **existing** folders. `destForGroup` (`src/planner.js`) is **code-aware**:
+   `444_HW.pdf` → existing `cse444` or `CSE/444` (matches 3-digit + `cseNNN` codes against dest
+   leaf names AND subfolders, ignoring bare years).
+4. **Plain-word prompts** (`applyPrompt`) — deterministic rule pass → fuzzy model pass; a
+   delete-safety rail means an AI "delete" is only honored if the rules already flagged it.
+5. **Execute** (`src/executor.js`) — moves within granted folders; **removals → Quarantine**
+   (`restore-manifest.json`, cross-device safe, traversal-guarded); hard-guards protected paths.
+
+## App-sandbox specifics (App Store build)
+
+- Entitlements: `build/entitlements.mas.plist` (parent — app-sandbox, allow-jit, application-
+  groups, files.user-selected.read-write, files.bookmarks.app-scope, network.client). `__TEAMID__`
+  is substituted at sign time. Helpers use osx-sign's default child (app-sandbox + inherit).
+- **`application-groups` is mandatory** — Electron's Mach-port rendezvous crashes at launch
+  without it (found in the sandbox spike).
+- **Security-scoped bookmarks** (`src/scope.js`) persist folder access across launches; `main.js`
+  `withAccess()` wraps file ops in start/stopAccessingSecurityScopedResource.
+- `--no-asar` so native `.node`/`ocr-helper` are real signable files.
+- OCR: precompiled Vision `ocr-helper` bundled (no runtime `swiftc`, which the sandbox forbids).
+
+## Signing + upload (this is the part that took iteration)
+
+`scripts/sign-mas.sh` → `scripts/sign-app.mjs`:
+- Signs via **@electron/osx-sign's programmatic `sign()`** (NOT `signAsync`; the 2.x **CLI
+  dropped `--entitlements`** and `npx @electron/osx-sign` can't resolve its bin). Our parent
+  entitlements go to the main app; `preAutoEntitlements` (default) auto-adds team-identifier +
+  application-groups from the provisioning profile.
+- **Four Apple validation rejections, each fixed (iterate one at a time):**
+  1. bundled `finder/*.workflow` had no bundle id → exclude `finder/` (and `docs/`) from the build.
+  2. arm64-only rejected at min 10.15 → set `LSMinimumSystemVersion 12.0` (Apple-Silicon-only).
+  3. **ITMS-91109**: `embedded.provisionprofile` (copied from ~/Downloads) carried
+     `com.apple.quarantine` → `xattr -cr "$APP"` **before** signing.
+  4. a rejected build number can't be reused → `--build-version` is a date-based `CFBundleVersion`
+     (`FA_BUILD` env or `date +%Y.%m%d.%H%M`), independent of the 1.0.0 marketing version.
+- **Upload:** `xcrun altool --upload-app --type osx --file <pkg> --username <appleid> --password
+  <app-specific-pw>`. The regular Apple ID password fails ("account or password incorrect") under
+  2FA — use an **app-specific password** (appleid.apple.com) or an ASC API key. Transporter.app is
+  the GUI alternative. `altool` success = uploaded; Apple's post-processing emails rejections minutes later.
 
 ## File map
 
 | File | Role |
 |------|------|
-| `main.js` | Electron main + all IPC handlers; cache/settings lifecycle; Ollama auto-start/stop |
-| `preload.js` | contextBridge `window.api` surface |
-| `src/scanner.js` | top-level scan + `gatherDestinations` + `listSubfolders` |
-| `src/classifier.js` | rule-based classification (junk/keep) |
-| `src/planner.js` | `planByRules`, `classifyWithModel`, `resolveDeepDest`, `refineWithModel`, `applyPrompt` |
-| `src/executor.js` | apply staged actions (move/quarantine) |
-| `src/ollama.js` | local Ollama client (`chatJSON` + streaming `chatStream`) + server lifecycle |
-| `src/cache.js` | classification result cache |
-| `src/settings.js` | persisted settings |
-| `src/finderSort.js` | detect a folder's current Finder sort (per-folder `.DS_Store` → global default → null), mapped to name/date/size |
-| `bin/folderai` | CLI launcher — opens the app on a given folder (used by the Finder Quick Action) |
-| `finder/` | Finder integration prototype: a "Clean up with Folderai" Quick Action (`.workflow`) + setup README. App is folder-aware via argv + macOS `open-file` (see `launchFolder` in main.js) |
-| `renderer/` | UI (`index.html`, `styles.css`, `renderer.js`) — staging table, AI gate modal, prompt box, progress bar, sort control, destination dropdowns. Default view order is set from the folder's actual Finder sort on each scan (`finderSort` in the scan result), falling back to name |
+| `main.js` | Electron main + IPC; backend detection; `withAccess` bookmarks; quit-time `dispose()` |
+| `src/inference.js` | backend switchboard (`FA_BACKEND=llama` → in-process, else Ollama) |
+| `src/llama.js` | in-process node-llama-cpp backend (chat/stream/warmup/dispose) |
+| `src/ollama.js` | dev Ollama client + server lifecycle |
+| `src/model.js` | model delivery — bundled gguf preferred, else copy Ollama blob / `FA_MODEL_URL` |
+| `src/scope.js` | granted + protected folders, security-scoped bookmarks (userData/scope.json) |
+| `src/scanner.js` | top-level scan + `gatherDestinations` |
+| `src/planner.js` | rules, `classifyWithModel`, `destForGroup` (code-aware), `applyPrompt` |
+| `src/executor.js` | apply actions; quarantine-only; protected-path guards |
+| `src/ocr.js` | bundled Vision `ocr-helper` (no runtime swiftc) |
+| `renderer/` | UI — staging table, AI gate, settings, progress + work-weighted ETA |
+| `scripts/build.sh` | `[inprocess]` build → `dist-inprocess/Folderai.app` (dev/test; auto-uses `build/icon.icns`) |
+| `scripts/sign-mas.sh` + `scripts/sign-app.mjs` | MAS build + sign + signed `.pkg` |
+| `finder/` | legacy Finder Quick Action (`.workflow`) — **excluded from the MAS build** |
+| `docs/` | GitHub Pages: `index.html` (landing/support) + `privacy.html` (privacy policy) |
+| `APPSTORE.md` / `MAS.md` / `PRIVACY.md` | submission playbook / build guide / policy |
 
-## Important context / decisions made with the user
+## Recent UI/features (this session)
 
-- **Model**: staying on **llama3.2:3b** (leaves headroom). 1B was tested and is
-  too weak (mis-classifies, mis-deletes). The 3B is the practical floor and is
-  still imperfect on routing/compound prompts — the staging UI is the safety net.
-- **Eventual plan (NOT built)**: convert to a **truly embedded model** with
-  `node-llama-cpp` (no Ollama at all), model **bundled at install** (user prefers
-  honest upfront install over first-run downloads; use delta updates to keep app
-  updates small). Auto-managed Ollama (current) is the agreed stopgap.
-- **Roadmap (NOT built)**: classify by **file contents**, not just filenames —
-  text extraction for PDFs/docx, macOS Vision OCR for images, a small VLM only
-  where needed; powers content-aware rename / foldering. Keep the model layer
-  pluggable. Read contents selectively (only when ambiguous) and cache by
-  path+mtime.
+- **Renamed** FolderAI → Folderai (lowercase wordmark).
+- **Start fresh** (Settings → Maintenance) — clears the saved plan + cache + learned changes and
+  empties the view (the prior "Clear AI cache" left the restored `staged-plan.json` on screen).
+- **Work-weighted ETA** — projects by size/type-weighted work, not raw file count, so a burst of
+  tiny files doesn't skew it (`computeEta`/`buildEtaUnits` in `renderer.js`).
+- **AI-gate note** reflects "Re-run from scratch" (no "reused instantly" when ignoring cache).
+- **Existing-folder routing** fix (code-aware `destForGroup`).
+- De-jargoned/decluttered UI; Destinations merged (one "Add destination"); min window size;
+  settings overflow fixed; centered settings gear.
+
+## Run / build
+
+```bash
+npm install
+npm start                 # dev run (Ollama backend) — needs `ollama pull llama3.2:3b`
+npm run build             # scripts/build.sh inprocess → dist-inprocess/Folderai.app (in-process, unsigned)
+npm run build:mas         # scripts/sign-mas.sh → signed .pkg (needs the env vars below)
+```
+
+MAS signing env (Xintech LLC):
+```bash
+export APPLE_TEAM_ID="Y97FTNGTB8"
+export MAS_APP_CERT="Apple Distribution: Xintech LLC (Y97FTNGTB8)"
+export MAS_INSTALLER_CERT="3rd Party Mac Developer Installer: Xintech LLC (Y97FTNGTB8)"
+export PROVISION_PROFILE="$HOME/Downloads/Folderai_Mac_App_Store.provisionprofile"
+```
 
 ## Open TODOs
 
-- [ ] Persist user-added destination locations (`extraRoots`) across restarts
-      (currently in-memory for the session). Mirror the settings.json pattern.
-- [ ] Esc-to-dismiss on the AI gate modal (= Skip).
-- [ ] `classified` count is overstated on Stop (reports `total - hits`, not files
-      actually processed) — only shown in the non-cancelled status line, minor.
-- [ ] Larger follow-ups: embedded model (node-llama-cpp), content-based
-      classification/rename (see above).
+- [ ] **`mas` app icon** — make `electron-packager` apply `build/icon.icns` on the mas target
+      (required for store review).
+- [ ] Replace the **placeholder icon** with a designed 1024×1024.
+- [ ] Store metadata + correctly-sized screenshots; enable GitHub Pages for the privacy URL.
+- [ ] Re-add the deferred deterministic rules — bulk-pattern apply-prompt handler and
+      series/course filename-rescue (the 3B omits ~30% of files); both were built then removed.
+- [ ] Esc-to-dismiss on the AI gate; minor `classified`-count overstatement on Stop.
+- [ ] Content-based classification/rename roadmap (text/OCR/VLM where ambiguous).
 
 ## Testing notes
 
-No formal test suite. Core modules were validated headlessly with throwaway
-Node scripts (scan→plan→execute, AI routing, deep-drill, cache cold/warm/prune,
-Stop abort, settings round-trip) and Electron boot smoke tests
-(`timeout 8 npx electron .` grepping stderr for errors). The AI/model behavior is
-non-deterministic on a 3B — verify the *mechanism*, not exact model choices.
-Remember to `pkill -f "ollama serve"` after tests if you don't want it left running.
+No formal suite. Validate the *mechanism* (scan→plan→execute, routing, cache, Stop, settings)
+headlessly + Electron boot smoke (`timeout 8 npx electron .`, grep stderr). The 3B is
+non-deterministic — don't assert exact model choices. **Set `HOME` to a temp dir before
+execute()/classify tests**, or they mutate the real `~/Documents`. After Ollama tests,
+`pkill -f "ollama serve"` (but never while the user is running the app).
+```
