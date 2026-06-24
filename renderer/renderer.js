@@ -1231,9 +1231,7 @@ scanBtn.addEventListener('click', async () => {
       // list back behind a placeholder until the user decides.
       awaitingDecision = true;
       render();
-      $('ai-gate-info').textContent =
-        `up to ${fileCount} files — ${estimateMinutes()} of local compute ` +
-        `(unchanged files since a previous run are reused instantly).`;
+      updateGateInfo();
       aiGate.classList.remove('hidden');
     } else {
       awaitingDecision = false;
@@ -1245,6 +1243,16 @@ scanBtn.addEventListener('click', async () => {
     scanBtn.disabled = false;
   }
 });
+
+// The AI-gate time note. "Re-run from scratch" ignores the cache, so it re-classifies
+// EVERY file (nothing reused) — reflect that instead of always promising reuse.
+function updateGateInfo() {
+  const n = state.actions.filter((a) => !a.isDir).length;
+  $('ai-gate-info').textContent = $('ignore-cache').checked
+    ? `${n} files — re-classifying all of them from scratch (${estimateMinutes()} of local compute).`
+    : `up to ${n} files — ${estimateMinutes()} of local compute. Files unchanged since a previous run are reused instantly, so it's usually faster.`;
+}
+$('ignore-cache').addEventListener('change', updateGateInfo);
 
 async function runAI() {
   aiGate.classList.add('hidden');
