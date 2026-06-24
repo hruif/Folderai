@@ -6,16 +6,16 @@ Everything code-side is done. This is the checklist for the parts only you can d
 ## What you provide (one-time setup in the Apple Developer portal)
 
 1. **Apple Developer Program** membership ($99/yr).
-2. **App Store Connect → a new macOS app** with bundle ID `com.folderai.app`
+2. **App Store Connect → a new macOS app** with bundle ID `com.xintechllc.folderai`
    (change it in `package.json` / `scripts/*.sh` if you want a different one — keep it
    consistent everywhere).
-3. **An App Group**: register `com.folderai.app` so the identifier becomes
-   `<TEAMID>.com.folderai.app`. Electron's main process needs this or it crashes at
+3. **An App Group**: register `com.xintechllc.folderai` so the identifier becomes
+   `<TEAMID>.com.xintechllc.folderai`. Electron's main process needs this or it crashes at
    launch (the `application-groups` entitlement — verified in our sandbox spike).
 4. **Two certificates** (Certificates, Identifiers & Profiles):
    - `3rd Party Mac Developer Application: <you> (<TEAMID>)`
    - `3rd Party Mac Developer Installer: <you> (<TEAMID>)`
-5. **A Mac App Store provisioning profile** for `com.folderai.app` that **includes the
+5. **A Mac App Store provisioning profile** for `com.xintechllc.folderai` that **includes the
    App Group**. Download it as `embedded.provisionprofile`.
 
 ## Build + sign + package

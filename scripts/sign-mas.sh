@@ -31,7 +31,7 @@ echo "inprocess" > "$STAGE/inprocess.flag"
 echo "› packaging (mas target)…"
 npx --yes @electron/packager . FolderAI \
   --platform=mas --arch=arm64 --out="$STAGE/out" --overwrite --no-asar \
-  --app-bundle-id=com.folderai.app --app-version="$VERSION" --build-version="$VERSION" \
+  --app-bundle-id=com.xintechllc.folderai --app-version="$VERSION" --build-version="$VERSION" \
   --extra-resource="$STAGE/ocr-helper" --extra-resource="$STAGE/inprocess.flag" \
   --ignore='^/dist' --ignore='^/dist-ship' --ignore='^/dist-inprocess' --ignore='^/scripts' --ignore='^/build' --ignore='^/\.git'
 APP="$STAGE/out/FolderAI-mas-arm64/FolderAI.app"

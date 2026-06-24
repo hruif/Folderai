@@ -19,7 +19,7 @@ echo "Compiling OCR helper (Vision)…"
 swiftc -O native/ocr.swift -o "$STAGE/ocr-helper"
 
 IGN=(--ignore='^/dist($|/)' --ignore='^/dist-ship($|/)' --ignore='^/dist-inprocess($|/)' --ignore='^/\.git($|/)' --ignore='^/scripts($|/)')
-COMMON=(--platform=darwin --arch=arm64 --overwrite --no-asar --app-bundle-id=com.folderai.app --extra-resource="$STAGE/ocr-helper")
+COMMON=(--platform=darwin --arch=arm64 --overwrite --no-asar --app-bundle-id=com.xintechllc.folderai --extra-resource="$STAGE/ocr-helper")
 
 if [ "$MODE" = "inprocess" ]; then
   echo "inprocess" > "$STAGE/inprocess.flag"
