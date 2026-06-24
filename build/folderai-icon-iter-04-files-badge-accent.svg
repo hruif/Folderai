@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="backFolder" x1="248" y1="246" x2="749" y2="780" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#79CDFF"/>
+      <stop offset="0.52" stop-color="#4FAEF3"/>
+      <stop offset="1" stop-color="#2D86DE"/>
+    </linearGradient>
+    <linearGradient id="frontFolder" x1="230" y1="420" x2="779" y2="846" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6FC8FF"/>
+      <stop offset="0.48" stop-color="#38A6F1"/>
+      <stop offset="1" stop-color="#1778D4"/>
+    </linearGradient>
+    <linearGradient id="folderLip" x1="212" y1="398" x2="766" y2="497" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8BD9FF"/>
+      <stop offset="1" stop-color="#42AEEF"/>
+    </linearGradient>
+    <linearGradient id="sheetA" x1="355" y1="274" x2="497" y2="530" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.98"/>
+      <stop offset="1" stop-color="#CFEFFF" stop-opacity="0.92"/>
+    </linearGradient>
+    <linearGradient id="sheetB" x1="488" y1="285" x2="618" y2="524" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F5FCFF" stop-opacity="0.97"/>
+      <stop offset="1" stop-color="#B9E6FF" stop-opacity="0.9"/>
+    </linearGradient>
+    <linearGradient id="badgeFill" x1="618" y1="546" x2="789" y2="759" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#394856"/>
+      <stop offset="1" stop-color="#182531"/>
+    </linearGradient>
+    <filter id="folderShadow" x="5%" y="9%" width="90%" height="88%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="32" stdDeviation="28" flood-color="#0D3554" flood-opacity="0.28"/>
+      <feDropShadow dx="0" dy="8" stdDeviation="7" flood-color="#0D3554" flood-opacity="0.18"/>
+    </filter>
+    <filter id="innerShadow" x="12%" y="22%" width="76%" height="58%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#0E4F83" flood-opacity="0.18"/>
+    </filter>
+    <filter id="badgeShadow" x="52%" y="50%" width="36%" height="36%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="14" stdDeviation="13" flood-color="#0A2B44" flood-opacity="0.36"/>
+    </filter>
+    <filter id="tinyShadow" x="64%" y="42%" width="14%" height="14%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#0A2B44" flood-opacity="0.24"/>
+    </filter>
+    <clipPath id="frontClip">
+      <path d="M185 381 C185 353 208 331 236 331 H399 C424 331 437 346 451 364 L474 393 H785 C815 393 838 417 834 447 L777 756 C772 786 746 809 716 809 H262 C232 809 207 786 202 756 L143 448 C138 413 152 381 185 381 Z"/>
+    </clipPath>
+  </defs>
+
+  <rect width="1024" height="1024" fill="none"/>
+
+  <g id="folder" filter="url(#folderShadow)">
+    <path d="M201 296 C201 263 228 237 261 237 H402 C428 237 443 250 459 271 L489 310 H763 C796 310 823 337 823 370 V673 C823 707 796 734 762 734 H262 C228 734 201 707 201 673 Z" fill="url(#backFolder)"/>
+    <path d="M220 296 C220 274 238 256 260 256 H393 C419 256 431 269 447 289 L475 326 H763 C775 326 786 332 792 341 H487 C456 341 439 326 421 302 L405 281 H260 C238 281 220 299 220 321 Z" fill="rgba(255,255,255,0.28)"/>
+
+    <g id="file-sheets" filter="url(#innerShadow)">
+      <path d="M333 298 C333 281 347 267 364 267 H517 L590 339 V553 C590 570 576 584 559 584 H364 C347 584 333 570 333 553 Z" fill="url(#sheetA)" opacity="0.94"/>
+      <path d="M517 267 V327 C517 336 524 343 533 343 H590 Z" fill="#BDE8FF" opacity="0.95"/>
+      <path d="M380 392 H540" stroke="#7DCBF0" stroke-width="15" stroke-linecap="round" opacity="0.35"/>
+      <path d="M380 445 H516" stroke="#7DCBF0" stroke-width="15" stroke-linecap="round" opacity="0.29"/>
+      <path d="M445 315 C445 298 459 284 476 284 H611 L680 352 V558 C680 575 666 589 649 589 H476 C459 589 445 575 445 558 Z" fill="url(#sheetB)" opacity="0.90"/>
+      <path d="M611 284 V340 C611 349 618 356 627 356 H680 Z" fill="#A9DBF8" opacity="0.94"/>
+      <path d="M492 415 H627" stroke="#62BEEB" stroke-width="14" stroke-linecap="round" opacity="0.30"/>
+      <path d="M492 468 H602" stroke="#62BEEB" stroke-width="14" stroke-linecap="round" opacity="0.25"/>
+    </g>
+
+    <path d="M185 381 C185 353 208 331 236 331 H399 C424 331 437 346 451 364 L474 393 H785 C815 393 838 417 834 447 L777 756 C772 786 746 809 716 809 H262 C232 809 207 786 202 756 L143 448 C138 413 152 381 185 381 Z" fill="url(#frontFolder)"/>
+    <path d="M172 405 C178 391 192 382 208 382 H411 C432 382 446 391 459 408 L479 433 H815 C825 433 833 440 834 449 L826 493 H156 L143 448 C138 427 151 405 172 405 Z" fill="url(#folderLip)" opacity="0.96"/>
+    <path d="M160 510 H820 L777 756 C772 786 746 809 716 809 H262 C232 809 207 786 202 756 Z" fill="rgba(0,72,138,0.08)" clip-path="url(#frontClip)"/>
+    <path d="M186 392 C188 366 209 348 236 348 H399 C415 348 426 356 437 370 L463 404 H787 C805 404 818 417 817 435" fill="none" stroke="rgba(255,255,255,0.38)" stroke-width="14" stroke-linecap="round"/>
+    <path d="M203 739 C208 766 231 786 259 786 H716 C744 786 768 766 773 738" fill="none" stroke="rgba(8,85,150,0.18)" stroke-width="15" stroke-linecap="round"/>
+  </g>
+
+  
+  
+    <g id="ai-org-badge" filter="url(#badgeShadow)">
+      <circle cx="704" cy="654" r="126" fill="url(#badgeFill)" stroke="rgba(255,255,255,0.72)" stroke-width="8"/>
+      <circle cx="704" cy="654" r="111" fill="none" stroke="rgba(114,225,230,0.18)" stroke-width="3"/>
+      <path d="M648 678 C676 654 688 632 704 602 C722 636 736 657 766 679" fill="none" stroke="#9DECEF" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M648 678 C676 654 688 632 704 602 C722 636 736 657 766 679" fill="none" stroke="rgba(255,255,255,0.62)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="704" cy="602" r="23" fill="#EAFBFF"/>
+      <circle cx="648" cy="678" r="23" fill="#DFF8FB"/>
+      <circle cx="766" cy="679" r="23" fill="#DFF8FB"/>
+      <circle cx="704" cy="602" r="9" fill="#4AC9D5"/>
+      <circle cx="648" cy="678" r="9" fill="#4AC9D5"/>
+      <circle cx="766" cy="679" r="9" fill="#FFB94E"/>
+    </g>
+</svg>

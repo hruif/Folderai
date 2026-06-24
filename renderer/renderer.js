@@ -1359,6 +1359,23 @@ $('clear-learning').addEventListener('click', async () => {
   setStatus(`Forgot ${cleared} learned preference${cleared === 1 ? '' : 's'}.`);
 });
 
+// Start fresh: clear cache + learned + the saved plan, and reset the view to a blank slate.
+$('start-fresh').addEventListener('click', async () => {
+  try { await window.api.clearCache(); } catch { /* */ }
+  try { await window.api.clearLearning(); } catch { /* */ }
+  try { await window.api.clearPlan(); } catch { /* */ }
+  state.actions = [];
+  state.folder = null;
+  state.selected.clear();
+  state.clipboard = [];
+  $('folder').value = '';
+  summary.classList.add('hidden');
+  $('undo').classList.add('hidden');
+  closeSettings();
+  render(); // empties the list/tree
+  setStatus('Cleared — choose a folder and scan to start fresh.');
+});
+
 // Enter makes a new line (so you can't fire a half-typed request); ⌘/Ctrl-Enter applies.
 $('prompt').addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); $('apply-prompt').click(); }
