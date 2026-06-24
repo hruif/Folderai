@@ -49,14 +49,20 @@ function uniqueDest(dir, name) {
 }
 
 // Execute the included actions against `folder`.
-// Returns { moved, deleted, kept, skipped, errors[], quarantineManifest }.
-function execute(folder, actions) {
-  const result = { moved: 0, deleted: 0, kept: 0, skipped: 0, errors: [], operations: [] };
+// opts.isProtected(path) → true for do-not-touch paths; such items are NEVER moved,
+// renamed, or quarantined, and nothing is written into them (hard deterministic guard).
+// Returns { moved, deleted, kept, skipped, protected, errors[], operations[] }.
+function execute(folder, actions, opts = {}) {
+  const isProtected = typeof opts.isProtected === 'function' ? opts.isProtected : () => false;
+  const result = { moved: 0, deleted: 0, kept: 0, skipped: 0, protected: 0, errors: [], operations: [] };
   const quarantineDir = path.join(folder, QUARANTINE_DIR);
   const manifest = []; // for restore: { from, to, ts }
 
   for (const a of actions) {
     if (!a.include) { result.skipped += 1; continue; }
+    // HARD GUARD: never touch a protected source. Backstops the plan regardless of
+    // what was proposed — a do-not-touch path is left completely alone.
+    if (isProtected(a.path)) { result.protected += 1; continue; }
 
     try {
       if (a.action === 'keep') {
@@ -100,6 +106,7 @@ function execute(folder, actions) {
             continue;
           }
         }
+        if (isProtected(categoryDir)) { result.protected += 1; continue; } // never write into a protected folder
         // Already in its destination dir — rename in place if requested, else keep.
         if (path.dirname(a.path) === categoryDir) {
           if (a.rename && a.rename !== a.name) {

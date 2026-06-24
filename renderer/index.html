@@ -102,6 +102,18 @@
         </label>
       </div>
       <div class="settings-group">
+        <h4>Protected folders</h4>
+        <p class="settings-help">FolderAI will <strong>never</strong> move, rename, or quarantine anything in these — they're left completely alone.</p>
+        <ul id="protected-list" class="scope-list"></ul>
+        <button id="add-protected" class="small">+ Add protected folder</button>
+      </div>
+      <div class="settings-group">
+        <h4>Folders FolderAI can access</h4>
+        <p class="settings-help">The folders you've granted. On the App Store build, access is remembered between launches.</p>
+        <ul id="granted-list" class="scope-list"></ul>
+        <button id="grant-folder" class="small">+ Grant a folder</button>
+      </div>
+      <div class="settings-group">
         <h4>Maintenance</h4>
         <div class="settings-row">
           <button id="clear-cache" class="small">Clear AI cache</button>

@@ -1011,10 +1011,27 @@ window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !changeRep
 // live here now — moved out of the main bar to declutter).
 const settingsOverlay = $('settings-overlay');
 const closeSettings = () => settingsOverlay.classList.add('hidden');
-$('open-settings').addEventListener('click', () => settingsOverlay.classList.remove('hidden'));
+$('open-settings').addEventListener('click', () => { settingsOverlay.classList.remove('hidden'); renderScope(); });
 $('settings-close').addEventListener('click', closeSettings);
 settingsOverlay.addEventListener('click', (e) => { if (e.target === settingsOverlay) closeSettings(); });
 window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !settingsOverlay.classList.contains('hidden')) closeSettings(); });
+
+// ---- Access scope: protected (do-not-touch) + granted folders ----
+async function renderScope() {
+  let s;
+  try { s = await window.api.getScope(); } catch { return; }
+  const tilde = (p) => String(p).replace(/^\/Users\/[^/]+/, '~');
+  const fill = (el, paths, removeFn, emptyMsg) => {
+    el.innerHTML = paths.length
+      ? paths.map((it) => { const p = typeof it === 'string' ? it : it.path; return `<li><span class="scope-path" title="${p}">${tilde(p)}</span><button class="scope-rm" data-path="${p}">Remove</button></li>`; }).join('')
+      : `<li class="scope-empty">${emptyMsg}</li>`;
+    el.querySelectorAll('.scope-rm').forEach((b) => b.addEventListener('click', async () => { await removeFn(b.dataset.path); renderScope(); }));
+  };
+  fill($('protected-list'), s.protected || [], (p) => window.api.removeProtected(p), 'Nothing protected yet.');
+  fill($('granted-list'), s.granted || [], (p) => window.api.removeGrant(p), 'No folders granted yet.');
+}
+$('add-protected').addEventListener('click', async () => { await window.api.addProtected(); renderScope(); });
+$('grant-folder').addEventListener('click', async () => { await window.api.grantFolder(); renderScope(); });
 
 // Quick collapse/expand all folders in the tree.
 $('collapse-all').addEventListener('click', () => {

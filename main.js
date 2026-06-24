@@ -78,6 +78,7 @@ const { loadCache, saveCache, pruneCache, clearCache, cacheKey } = require('./sr
 const { loadLearning, clearLearning, recordCorrections } = require('./src/learning');
 const { loadSettings, saveSettings, DEFAULTS } = require('./src/settings');
 const { detectFinderSort } = require('./src/finderSort');
+const scope = require('./src/scope'); // granted folders + do-not-touch protected paths
 const ollama = require('./src/inference'); // swappable: system Ollama (dev) or in-process llama.cpp (App Store)
 const modelDelivery = require('./src/model');
 
@@ -105,6 +106,26 @@ function getSettings() {
     settings = loadSettings(settingsFile);
   }
   return settings;
+}
+
+// Access scope (granted folders + protected paths), loaded lazily once userData exists.
+let scopeInited = false;
+function ensureScope() {
+  if (!scopeInited) { scope.init(app.getPath('userData')); scopeInited = true; }
+  return scope;
+}
+
+// Sandbox: hold the security-scoped bookmark covering `target` while fn runs, so the
+// sandboxed build can actually read/write the granted folder. In the direct build
+// there are no bookmarks, so this is a pure pass-through (no behavior change).
+async function withAccess(target, fn) {
+  ensureScope();
+  let stop = null;
+  const bm = scope.bookmarkFor(target);
+  if (bm && typeof app.startAccessingSecurityScopedResource === 'function') {
+    try { stop = app.startAccessingSecurityScopedResource(bm); } catch { /* */ }
+  }
+  try { return await fn(); } finally { if (typeof stop === 'function') { try { stop(); } catch { /* */ } } }
 }
 
 // AI classification cache, loaded lazily once userData path is available.
@@ -274,10 +295,29 @@ ipcMain.handle('select-folder', async () => {
   const res = await dialog.showOpenDialog(win, {
     properties: ['openDirectory'],
     defaultPath: path.join(os.homedir(), 'Downloads'),
+    securityScopedBookmarks: true, // sandbox: remember access; no-op in the direct build
   });
   if (res.canceled || !res.filePaths.length) return null;
+  ensureScope();
+  scope.addGrant(res.filePaths[0], (res.bookmarks && res.bookmarks[0]) || null);
   return res.filePaths[0];
 });
+
+// ---- Access scope: granted folders + do-not-touch protected paths ----
+ipcMain.handle('get-scope', () => { ensureScope(); return { granted: scope.grantedRoots(), protected: scope.protectedPaths() }; });
+ipcMain.handle('grant-folder', async () => {
+  const res = await dialog.showOpenDialog(win, { properties: ['openDirectory'], securityScopedBookmarks: true, title: 'Grant FolderAI access to a folder' });
+  if (res.canceled || !res.filePaths.length) return ensureScope().grantedRoots();
+  ensureScope().addGrant(res.filePaths[0], (res.bookmarks && res.bookmarks[0]) || null);
+  return scope.grantedRoots();
+});
+ipcMain.handle('remove-grant', (_e, p) => ensureScope().removeGrant(p));
+ipcMain.handle('add-protected', async () => {
+  const res = await dialog.showOpenDialog(win, { properties: ['openDirectory'], title: 'Choose a folder FolderAI must NEVER touch' });
+  if (res.canceled || !res.filePaths.length) return ensureScope().protectedPaths();
+  return ensureScope().addProtected(res.filePaths[0]);
+});
+ipcMain.handle('remove-protected', (_e, p) => ensureScope().removeProtected(p));
 
 // Cache of the last scan's destination folders (across locations), so the AI
 // passes can route files into the user's real structure.
@@ -285,7 +325,7 @@ let lastScan = { folder: null, destinations: [] };
 
 // Scan is always instant: rule-based plan only. AI refinement is a separate,
 // cancellable step so the user sees results immediately on large folders.
-ipcMain.handle('scan', async (_e, { folder, extraRoots }) => {
+ipcMain.handle('scan', async (_e, { folder, extraRoots }) => withAccess(folder, async () => {
   const { items } = scanFolder(folder);
   const roots = destinationRoots(extraRoots || []);
   const destinations = gatherDestinations(roots, os.homedir());
@@ -299,6 +339,11 @@ ipcMain.handle('scan', async (_e, { folder, extraRoots }) => {
     const primary = dupOf.get(String(a.id));
     if (primary) { a.action = 'delete'; a.category = 'Junk'; a.reason = `Duplicate of "${primary.name}"`; dupes += 1; }
   }
+  // Do-not-touch: anything under a protected path is locked to "keep" and never proposed.
+  ensureScope();
+  for (const a of actions) {
+    if (scope.isProtected(a.path)) { a.action = 'keep'; a.category = 'Other'; a.destPath = null; a.rename = null; a.protected = true; a.reason = 'Protected — never touched'; }
+  }
 
   return {
     folder,
@@ -310,7 +355,7 @@ ipcMain.handle('scan', async (_e, { folder, extraRoots }) => {
     destinations,
     finderSort: detectFinderSort(folder), // how this folder is sorted in Finder
   };
-});
+}));
 
 let aiCancelled = false;
 let aiAbort = null;
@@ -425,6 +470,11 @@ ipcMain.handle('classify-ai', async (_e, { actions, model, guidance, ignoreCache
         ({ done, total }) => { if (total > 1) sendProgress(`Applying your guidance… (${done}/${total})`); });
     } catch { /* non-fatal */ }
   }
+  // Re-assert do-not-touch: the model/guidance must never re-route a protected item.
+  ensureScope();
+  for (const a of refined) {
+    if (a.protected || scope.isProtected(a.path)) { a.action = 'keep'; a.category = 'Other'; a.destPath = null; a.rename = null; a.protected = true; a.reason = 'Protected — never touched'; }
+  }
   return { actions: refined, cancelled: aiCancelled, hits, classified };
 });
 
@@ -460,15 +510,16 @@ ipcMain.handle('apply-prompt', async (_e, { actions, prompt, model }) => {
 });
 
 let lastOperations = []; // moves from the most recent execute, for one-step undo
-ipcMain.handle('execute', async (_e, { folder, actions }) => {
+ipcMain.handle('execute', async (_e, { folder, actions }) => withAccess(folder, async () => {
   // Learn from any overrides the user made before executing.
   if (getSettings().useLearning !== false) {
     try { recordCorrections(getLearning(), actions); } catch { /* non-fatal */ }
   }
-  const result = execute(folder, actions);
+  ensureScope();
+  const result = execute(folder, actions, { isProtected: (p) => scope.isProtected(p) });
   lastOperations = result.operations || [];
   return result;
-});
+}));
 
 ipcMain.handle('clear-learning', () => {
   const l = getLearning();
