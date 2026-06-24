@@ -66,14 +66,14 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 const { scanFolder, gatherDestinations, labelFor, listSubfolders } = require('./src/scanner');
-const { planByRules, refineWithModel, applyPrompt, consolidateFolders } = require('./src/planner');
+const { planByRules, refineWithModel, applyPrompt, applyRuleRequest, consolidateFolders } = require('./src/planner');
 const { execute, undo } = require('./src/executor');
 const { findDuplicates } = require('./src/dedup');
 const { loadCache, saveCache, pruneCache, clearCache, cacheKey } = require('./src/cache');
 const { loadLearning, clearLearning, recordCorrections } = require('./src/learning');
 const { loadSettings, saveSettings, DEFAULTS } = require('./src/settings');
 const { detectFinderSort } = require('./src/finderSort');
-const ollama = require('./src/ollama');
+const ollama = require('./src/inference'); // swappable: system Ollama (dev) or in-process llama.cpp (App Store)
 
 // Persisted settings, loaded once userData is available.
 let settings = { ...DEFAULTS };
@@ -390,6 +390,15 @@ ipcMain.handle('classify-ai', async (_e, { actions, model, guidance, ignoreCache
       c.set(cacheKey(a, guidance || ''), { ...val, _path: a.path });
     }
     saveCache(c);
+  }
+  // The guidance box is also applied as a request at the end via the full pipeline:
+  // deterministic rules are instant; a fuzzy instruction runs the per-item match,
+  // shown as its own progress phase so the extra time isn't a surprise.
+  if (guidance && guidance.trim() && !aiCancelled) {
+    try {
+      await applyPrompt(refined, guidance, model, lastScan.destinations, aiAbort.signal,
+        ({ done, total }) => { if (total > 1) sendProgress(`Applying your guidance… (${done}/${total})`); });
+    } catch { /* non-fatal */ }
   }
   return { actions: refined, cancelled: aiCancelled, hits, classified };
 });

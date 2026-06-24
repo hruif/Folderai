@@ -161,6 +161,8 @@ body.compact tbody td { padding: 3px 8px; font-size: 12px; }
 .settings-row select { margin-left: auto; }
 .settings-help { margin: 2px 2px 6px; font-size: 12px; color: var(--muted); line-height: 1.5; }
 .settings-help em { font-style: normal; color: var(--text); }
+.model-note { margin: 7px 2px 0; font-size: 12px; color: var(--muted); line-height: 1.5; }
+.model-note strong { color: var(--text); }
 
 /* Header right cluster + gear button */
 .header-right { display: flex; align-items: center; gap: 10px; }

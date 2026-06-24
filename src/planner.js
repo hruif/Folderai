@@ -8,7 +8,7 @@ const { cacheKey } = require('./cache');
 const { listSubfolders } = require('./scanner');
 const { extractText } = require('./content');
 const { lookup: lookupLearning } = require('./learning');
-const ollama = require('./ollama');
+const ollama = require('./inference'); // swappable: system Ollama (dev) or in-process llama.cpp (App Store)
 
 const DOC_KINDS = new Set(['homework', 'assignment', 'essay', 'paper', 'notes', 'reading', 'document', 'report']);
 const OMIT_RETRIES = 2; // re-ask the model for files it skipped in a batch before keeping them as-is
@@ -1080,4 +1080,4 @@ async function consolidateFolders(actions, model, signal, onStatus = () => {}) {
   return { changed, folders: cats.length };
 }
 
-module.exports = { planByRules, refineWithModel, applyPrompt, resolveDeepDest, makeItemStreamer, consolidateFolders };
+module.exports = { planByRules, refineWithModel, applyPrompt, applyRuleRequest, resolveDeepDest, makeItemStreamer, consolidateFolders };
