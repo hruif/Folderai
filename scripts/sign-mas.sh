@@ -55,17 +55,11 @@ cp "$PROVISION_PROFILE" "$APP/Contents/embedded.provisionprofile"
 # 4) Bake the real Team ID into the parent entitlements (application-groups).
 sed "s/__TEAMID__/$APPLE_TEAM_ID/g" build/entitlements.mas.plist > "$STAGE/parent.plist"
 
-# 5) Sign everything inside-out — helpers + ocr-helper + node-llama-cpp .node get the
-#    inherit entitlements. @electron/osx-sign knows the Electron helper layout.
+# 5) Sign inside-out via @electron/osx-sign (programmatic API — its 2.x CLI dropped
+#    --entitlements). Main app → our parent.plist; Electron helpers + ocr-helper +
+#    node-llama-cpp .node → osx-sign's default child (app-sandbox + inherit).
 echo "› signing…"
-npx --yes @electron/osx-sign "$APP" \
-  --platform=mas \
-  --type=distribution \
-  --identity="$MAS_APP_CERT" \
-  --provisioning-profile="$PROVISION_PROFILE" \
-  --entitlements="$STAGE/parent.plist" \
-  --entitlements-inherit=build/entitlements.mas.inherit.plist \
-  --gatekeeper-assess=false
+node scripts/sign-app.mjs "$APP" "$STAGE/parent.plist"
 
 # 6) Build the signed installer package for App Store Connect.
 PKG="$STAGE/Folderai-$VERSION.pkg"

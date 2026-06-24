@@ -1,86 +1,103 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
-    <linearGradient id="backFolder" x1="248" y1="246" x2="749" y2="780" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#79CDFF"/>
-      <stop offset="0.52" stop-color="#4FAEF3"/>
-      <stop offset="1" stop-color="#2D86DE"/>
+    <linearGradient id="folderShell" x1="204" y1="270" x2="824" y2="812" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7BD0FF"/>
+      <stop offset="0.52" stop-color="#44ABEF"/>
+      <stop offset="1" stop-color="#1C80D7"/>
     </linearGradient>
-    <linearGradient id="frontFolder" x1="230" y1="420" x2="779" y2="846" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#6FC8FF"/>
-      <stop offset="0.48" stop-color="#38A6F1"/>
-      <stop offset="1" stop-color="#1778D4"/>
+    <linearGradient id="frontFolder" x1="188" y1="408" x2="800" y2="842" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#74CBFF"/>
+      <stop offset="0.48" stop-color="#36A4EF"/>
+      <stop offset="1" stop-color="#1476CF"/>
     </linearGradient>
-    <linearGradient id="folderLip" x1="212" y1="398" x2="766" y2="497" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#8BD9FF"/>
-      <stop offset="1" stop-color="#42AEEF"/>
+    <linearGradient id="folderLip" x1="147" y1="389" x2="844" y2="500" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#91DEFF"/>
+      <stop offset="1" stop-color="#3CA8E9"/>
     </linearGradient>
-    <linearGradient id="sheetA" x1="355" y1="274" x2="497" y2="530" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.98"/>
-      <stop offset="1" stop-color="#CFEFFF" stop-opacity="0.92"/>
+    <linearGradient id="sideWall" x1="774" y1="388" x2="850" y2="760" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3BA8ED" stop-opacity="0.7"/>
+      <stop offset="1" stop-color="#106EC6" stop-opacity="0.64"/>
     </linearGradient>
-    <linearGradient id="sheetB" x1="488" y1="285" x2="618" y2="524" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#F5FCFF" stop-opacity="0.97"/>
-      <stop offset="1" stop-color="#B9E6FF" stop-opacity="0.9"/>
+    <linearGradient id="sheetA" x1="292" y1="230" x2="576" y2="594" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.99"/>
+      <stop offset="1" stop-color="#D2F0FF" stop-opacity="0.93"/>
     </linearGradient>
-    <linearGradient id="badgeFill" x1="618" y1="546" x2="789" y2="759" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#394856"/>
-      <stop offset="1" stop-color="#182531"/>
+    <linearGradient id="sheetB" x1="424" y1="218" x2="706" y2="600" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F9FDFF" stop-opacity="0.98"/>
+      <stop offset="1" stop-color="#BFE7FD" stop-opacity="0.92"/>
     </linearGradient>
-    <filter id="folderShadow" x="5%" y="9%" width="90%" height="88%" color-interpolation-filters="sRGB">
+    <linearGradient id="sheetC" x1="360" y1="252" x2="656" y2="604" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F6FCFF" stop-opacity="0.99"/>
+      <stop offset="1" stop-color="#C9ECFF" stop-opacity="0.92"/>
+    </linearGradient>
+    <linearGradient id="badgeFill" x1="-68" y1="-68" x2="68" y2="68" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#38505F" stop-opacity="0.94"/>
+      <stop offset="1" stop-color="#152A38" stop-opacity="0.94"/>
+    </linearGradient>
+    <filter id="outerShadow" filterUnits="userSpaceOnUse" x="88" y="178" width="830" height="710" color-interpolation-filters="sRGB">
       <feDropShadow dx="0" dy="32" stdDeviation="28" flood-color="#0D3554" flood-opacity="0.28"/>
       <feDropShadow dx="0" dy="8" stdDeviation="7" flood-color="#0D3554" flood-opacity="0.18"/>
     </filter>
-    <filter id="innerShadow" x="12%" y="22%" width="76%" height="58%" color-interpolation-filters="sRGB">
-      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#0E4F83" flood-opacity="0.18"/>
+    <filter id="paperShadow" filterUnits="userSpaceOnUse" x="212" y="162" width="594" height="512" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="12" stdDeviation="10" flood-color="#0E4F83" flood-opacity="0.16"/>
     </filter>
-    <filter id="badgeShadow" x="52%" y="50%" width="36%" height="36%" color-interpolation-filters="sRGB">
-      <feDropShadow dx="0" dy="14" stdDeviation="13" flood-color="#0A2B44" flood-opacity="0.36"/>
+    <filter id="badgeShadow" filterUnits="userSpaceOnUse" x="-115" y="-115" width="230" height="230" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="8" stdDeviation="7" flood-color="#07304D" flood-opacity="0.22"/>
     </filter>
-    <filter id="tinyShadow" x="64%" y="42%" width="14%" height="14%" color-interpolation-filters="sRGB">
-      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#0A2B44" flood-opacity="0.24"/>
-    </filter>
-    <clipPath id="frontClip">
-      <path d="M185 381 C185 353 208 331 236 331 H399 C424 331 437 346 451 364 L474 393 H785 C815 393 838 417 834 447 L777 756 C772 786 746 809 716 809 H262 C232 809 207 786 202 756 L143 448 C138 413 152 381 185 381 Z"/>
-    </clipPath>
   </defs>
 
   <rect width="1024" height="1024" fill="none"/>
 
-  <g id="folder" filter="url(#folderShadow)">
-    <path d="M201 296 C201 263 228 237 261 237 H402 C428 237 443 250 459 271 L489 310 H763 C796 310 823 337 823 370 V673 C823 707 796 734 762 734 H262 C228 734 201 707 201 673 Z" fill="url(#backFolder)"/>
-    <path d="M220 296 C220 274 238 256 260 256 H393 C419 256 431 269 447 289 L475 326 H763 C775 326 786 332 792 341 H487 C456 341 439 326 421 302 L405 281 H260 C238 281 220 299 220 321 Z" fill="rgba(255,255,255,0.28)"/>
+  <g id="folder" filter="url(#outerShadow)">
+    <path id="connected-shell" d="M164 390 C169 352 200 323 239 323 H404 C431 323 447 336 466 358 L494 391 H807 C844 391 872 423 866 459 L817 747 C809 793 770 827 723 827 H273 C227 827 188 794 180 749 L132 462 C125 421 141 390 164 390 Z" fill="url(#folderShell)"/>
+    <path d="M185 372 C193 342 216 323 247 323 H399 C424 323 438 334 456 355 L487 391 H809 C838 391 860 412 862 439 H502 C469 439 449 426 427 399 L400 366 H247 C220 366 197 383 189 408 H156 C159 394 169 381 185 372 Z" fill="rgba(255,255,255,0.20)"/>
+    <path d="M190 385 C198 356 221 337 251 337 H398 C420 337 432 347 448 365 L480 403 H806 C830 403 848 418 853 441" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="12" stroke-linecap="round"/>
 
-    <g id="file-sheets" filter="url(#innerShadow)">
-      <path d="M333 298 C333 281 347 267 364 267 H517 L590 339 V553 C590 570 576 584 559 584 H364 C347 584 333 570 333 553 Z" fill="url(#sheetA)" opacity="0.94"/>
-      <path d="M517 267 V327 C517 336 524 343 533 343 H590 Z" fill="#BDE8FF" opacity="0.95"/>
-      <path d="M380 392 H540" stroke="#7DCBF0" stroke-width="15" stroke-linecap="round" opacity="0.35"/>
-      <path d="M380 445 H516" stroke="#7DCBF0" stroke-width="15" stroke-linecap="round" opacity="0.29"/>
-      <path d="M445 315 C445 298 459 284 476 284 H611 L680 352 V558 C680 575 666 589 649 589 H476 C459 589 445 575 445 558 Z" fill="url(#sheetB)" opacity="0.90"/>
-      <path d="M611 284 V340 C611 349 618 356 627 356 H680 Z" fill="#A9DBF8" opacity="0.94"/>
-      <path d="M492 415 H627" stroke="#62BEEB" stroke-width="14" stroke-linecap="round" opacity="0.30"/>
-      <path d="M492 468 H602" stroke="#62BEEB" stroke-width="14" stroke-linecap="round" opacity="0.25"/>
+    <g id="file-sheets" filter="url(#paperShadow)">
+      <g transform="rotate(-8 392 416)">
+        <path d="M296 255 C296 233 314 215 336 215 H512 L602 304 V582 C602 604 584 622 562 622 H336 C314 622 296 604 296 582 Z" fill="url(#sheetA)" opacity="0.94"/>
+        <path d="M512 215 V289 C512 299 520 307 530 307 H602 Z" fill="#B9E4FA" opacity="0.95"/>
+        <path d="M350 394 H540" stroke="#77C8EF" stroke-width="15" stroke-linecap="round" opacity="0.26"/>
+        <path d="M350 451 H516" stroke="#77C8EF" stroke-width="15" stroke-linecap="round" opacity="0.22"/>
+      </g>
+      <g transform="rotate(7 548 405)">
+        <path d="M434 226 C434 204 452 186 474 186 H644 L726 268 V582 C726 604 708 622 686 622 H474 C452 622 434 604 434 582 Z" fill="url(#sheetB)" opacity="0.9"/>
+        <path d="M644 186 V252 C644 262 652 270 662 270 H726 Z" fill="#A9DDF8" opacity="0.96"/>
+        <path d="M490 383 H650" stroke="#63BDE9" stroke-width="15" stroke-linecap="round" opacity="0.24"/>
+        <path d="M490 440 H625" stroke="#63BDE9" stroke-width="15" stroke-linecap="round" opacity="0.19"/>
+      </g>
+      <g transform="rotate(-2 493 420)">
+        <path d="M364 246 C364 224 382 206 404 206 H586 L674 294 V604 C674 626 656 644 634 644 H404 C382 644 364 626 364 604 Z" fill="url(#sheetC)" opacity="0.92"/>
+        <path d="M586 206 V278 C586 288 594 296 604 296 H674 Z" fill="#C2E9FB" opacity="0.96"/>
+        <path d="M420 400 H602" stroke="#70C4EC" stroke-width="15" stroke-linecap="round" opacity="0.25"/>
+        <path d="M420 457 H570" stroke="#70C4EC" stroke-width="15" stroke-linecap="round" opacity="0.19"/>
+        
+      </g>
     </g>
 
-    <path d="M185 381 C185 353 208 331 236 331 H399 C424 331 437 346 451 364 L474 393 H785 C815 393 838 417 834 447 L777 756 C772 786 746 809 716 809 H262 C232 809 207 786 202 756 L143 448 C138 413 152 381 185 381 Z" fill="url(#frontFolder)"/>
-    <path d="M172 405 C178 391 192 382 208 382 H411 C432 382 446 391 459 408 L479 433 H815 C825 433 833 440 834 449 L826 493 H156 L143 448 C138 427 151 405 172 405 Z" fill="url(#folderLip)" opacity="0.96"/>
-    <path d="M160 510 H820 L777 756 C772 786 746 809 716 809 H262 C232 809 207 786 202 756 Z" fill="rgba(0,72,138,0.08)" clip-path="url(#frontClip)"/>
-    <path d="M186 392 C188 366 209 348 236 348 H399 C415 348 426 356 437 370 L463 404 H787 C805 404 818 417 817 435" fill="none" stroke="rgba(255,255,255,0.38)" stroke-width="14" stroke-linecap="round"/>
-    <path d="M203 739 C208 766 231 786 259 786 H716 C744 786 768 766 773 738" fill="none" stroke="rgba(8,85,150,0.18)" stroke-width="15" stroke-linecap="round"/>
+    <path id="connected-pocket-rim" d="M162 391 C169 356 198 334 234 334 H405 C430 334 445 346 463 367 L491 400 H812 C841 400 862 423 861 452 L855 500 H143 L132 462 C126 430 138 405 162 391 Z" fill="url(#folderShell)" opacity="0.82"/>
+    <path d="M187 375 C198 356 219 347 244 347 H399 C421 347 434 357 451 377 L482 413 H811 C834 413 851 428 854 449" fill="none" stroke="rgba(255,255,255,0.26)" stroke-width="12" stroke-linecap="round"/>
+
+    <path id="front-panel" d="M146 408 C155 387 175 375 200 375 H415 C438 375 453 386 470 406 L493 433 H826 C849 433 867 454 863 477 L817 747 C809 793 770 827 723 827 H273 C227 827 188 794 180 749 L132 462 C128 440 133 421 146 408 Z" fill="url(#frontFolder)"/>
+    <path d="M146 408 C155 387 175 375 200 375 H415 C438 375 453 386 470 406 L493 433 H826 C847 433 864 450 864 471 L856 511 H143 L132 462 C128 440 133 421 146 408 Z" fill="url(#folderLip)" opacity="0.96"/>
+    <path d="M818 512 L862 471 L817 747 C812 776 795 800 771 814 C793 755 809 648 818 512 Z" fill="url(#sideWall)" opacity="0.64"/>
+    <path d="M143 514 H856 L817 747 C809 793 770 827 723 827 H273 C227 827 188 794 180 749 Z" fill="rgba(0,73,139,0.07)"/>
+    <path d="M178 393 C188 377 206 369 226 369 H405 C425 369 438 377 452 394 L483 428 H822 C843 428 859 443 860 463" fill="none" stroke="rgba(255,255,255,0.36)" stroke-width="14" stroke-linecap="round"/>
+    <path d="M199 736 C207 775 240 803 280 803 H717 C758 803 792 775 800 736" fill="none" stroke="rgba(8,85,150,0.18)" stroke-width="15" stroke-linecap="round"/>
+
+    
+    <g id="ai-org-badge" transform="translate(705 624) rotate(-7) skewX(-9) scale(0.66 0.55)" filter="url(#badgeShadow)">
+      <circle cx="0" cy="0" r="88" fill="url(#badgeFill)" stroke="rgba(235,250,255,0.74)" stroke-width="7"/>
+      <circle cx="0" cy="0" r="73" fill="none" stroke="rgba(127,225,231,0.22)" stroke-width="3"/>
+      <path d="M-40 21 C-17 4 -8 -13 0 -32 C11 -10 21 5 43 21" fill="none" stroke="#A9F0F2" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M-40 21 C-17 4 -8 -13 0 -32 C11 -10 21 5 43 21" fill="none" stroke="rgba(255,255,255,0.58)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="0" cy="-32" r="17" fill="#EAFBFF"/>
+      <circle cx="-40" cy="21" r="17" fill="#DFF8FB"/>
+      <circle cx="43" cy="21" r="17" fill="#DFF8FB"/>
+      <circle cx="0" cy="-32" r="6.5" fill="#4AC9D5"/>
+      <circle cx="-40" cy="21" r="6.5" fill="#4AC9D5"/>
+      <circle cx="43" cy="21" r="6.5" fill="#FFB84A"/>
+    </g>
   </g>
-
-  
-  
-    <g id="ai-org-badge" filter="url(#badgeShadow)">
-      <circle cx="704" cy="654" r="126" fill="url(#badgeFill)" stroke="rgba(255,255,255,0.72)" stroke-width="8"/>
-      <circle cx="704" cy="654" r="111" fill="none" stroke="rgba(114,225,230,0.18)" stroke-width="3"/>
-      <path d="M648 678 C676 654 688 632 704 602 C722 636 736 657 766 679" fill="none" stroke="#9DECEF" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="M648 678 C676 654 688 632 704 602 C722 636 736 657 766 679" fill="none" stroke="rgba(255,255,255,0.62)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
-      <circle cx="704" cy="602" r="23" fill="#EAFBFF"/>
-      <circle cx="648" cy="678" r="23" fill="#DFF8FB"/>
-      <circle cx="766" cy="679" r="23" fill="#DFF8FB"/>
-      <circle cx="704" cy="602" r="9" fill="#4AC9D5"/>
-      <circle cx="648" cy="678" r="9" fill="#4AC9D5"/>
-      <circle cx="766" cy="679" r="9" fill="#FFB94E"/>
-    </g>
 </svg>
