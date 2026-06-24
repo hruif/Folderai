@@ -1,4 +1,4 @@
-# FolderAI — Prioritized Release Checklist
+# Folderai — Prioritized Release Checklist
 
 Core is built: content-based classification (objective type + subject → universal
 grouping rules), works within existing folders, staging review, undo, quarantine,

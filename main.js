@@ -42,7 +42,7 @@ for (const arg of process.argv.slice(1)) {
   if (arg === '.' || arg.startsWith('-')) continue;
   noteFolderArg(arg);
 }
-// macOS "open -a FolderAI <folder>" / drag-onto-icon delivers the path here.
+// macOS "open -a Folderai <folder>" / drag-onto-icon delivers the path here.
 app.on('open-file', (e, p) => {
   e.preventDefault();
   noteFolderArg(p);
@@ -159,7 +159,7 @@ function createWindow() {
   win = new BrowserWindow({
     width: 1180,
     height: 820,
-    title: 'FolderAI — Downloads Cleaner',
+    title: 'Folderai — Downloads Cleaner',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -185,9 +185,26 @@ app.on('window-all-closed', () => {
   app.quit();
 });
 
-// Shut down the server only if we started it AND the setting allows it.
-app.on('will-quit', () => {
-  if (getSettings().stopOllamaOnQuit !== false) ollama.stopServer();
+// Clean shutdown. The in-process backend MUST dispose its GPU context/model before the
+// process exits, or llama.cpp's Metal teardown aborts → the "quit unexpectedly" dialog.
+// So on quit we hold exit, dispose (with a timeout so a hung dispose can't block quit),
+// then quit for real. The external-Ollama backend just stops the server we started.
+let didCleanup = false;
+async function cleanup() {
+  if (didCleanup) return;
+  didCleanup = true;
+  try {
+    if (typeof ollama.dispose === 'function') {
+      await Promise.race([ollama.dispose(), new Promise((r) => setTimeout(r, 3000))]);
+    } else if (getSettings().stopOllamaOnQuit !== false) {
+      ollama.stopServer();
+    }
+  } catch { /* best-effort */ }
+}
+app.on('before-quit', (e) => {
+  if (didCleanup) return; // second pass — let the quit proceed
+  e.preventDefault();
+  cleanup().finally(() => app.quit());
 });
 
 // Log (don't silently swallow) a renderer or helper-process death so a real crash
@@ -306,14 +323,14 @@ ipcMain.handle('select-folder', async () => {
 // ---- Access scope: granted folders + do-not-touch protected paths ----
 ipcMain.handle('get-scope', () => { ensureScope(); return { granted: scope.grantedRoots(), protected: scope.protectedPaths() }; });
 ipcMain.handle('grant-folder', async () => {
-  const res = await dialog.showOpenDialog(win, { properties: ['openDirectory'], securityScopedBookmarks: true, title: 'Grant FolderAI access to a folder' });
+  const res = await dialog.showOpenDialog(win, { properties: ['openDirectory'], securityScopedBookmarks: true, title: 'Grant Folderai access to a folder' });
   if (res.canceled || !res.filePaths.length) return ensureScope().grantedRoots();
   ensureScope().addGrant(res.filePaths[0], (res.bookmarks && res.bookmarks[0]) || null);
   return scope.grantedRoots();
 });
 ipcMain.handle('remove-grant', (_e, p) => ensureScope().removeGrant(p));
 ipcMain.handle('add-protected', async () => {
-  const res = await dialog.showOpenDialog(win, { properties: ['openDirectory'], title: 'Choose a folder FolderAI must NEVER touch' });
+  const res = await dialog.showOpenDialog(win, { properties: ['openDirectory'], title: 'Choose a folder Folderai must NEVER touch' });
   if (res.canceled || !res.filePaths.length) return ensureScope().protectedPaths();
   return ensureScope().addProtected(res.filePaths[0]);
 });

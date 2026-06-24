@@ -1,4 +1,4 @@
-# FolderAI — Handoff
+# Folderai — Handoff
 
 Privacy-first desktop app (Electron) that cleans up a Downloads folder using a
 **local Ollama model**. Everything runs on-device. Staging-first: nothing
@@ -9,7 +9,7 @@ touches disk until the user clicks Execute.
 ```bash
 npm install
 npm start            # dev run
-npm run package      # build dist/FolderAI-darwin-<arch>/FolderAI.app (instant launch)
+npm run package      # build dist/Folderai-darwin-<arch>/Folderai.app (instant launch)
 ```
 
 `@electron/packager` builds an unsigned `.app` (host arch). `bin/folderai` prefers
@@ -82,7 +82,7 @@ absent. Dev machine already has `llama3.2:3b`, `llama3.2:1b`, `deepseek-r1:7b`.
 | `src/settings.js` | persisted settings |
 | `src/finderSort.js` | detect a folder's current Finder sort (per-folder `.DS_Store` → global default → null), mapped to name/date/size |
 | `bin/folderai` | CLI launcher — opens the app on a given folder (used by the Finder Quick Action) |
-| `finder/` | Finder integration prototype: a "Clean up with FolderAI" Quick Action (`.workflow`) + setup README. App is folder-aware via argv + macOS `open-file` (see `launchFolder` in main.js) |
+| `finder/` | Finder integration prototype: a "Clean up with Folderai" Quick Action (`.workflow`) + setup README. App is folder-aware via argv + macOS `open-file` (see `launchFolder` in main.js) |
 | `renderer/` | UI (`index.html`, `styles.css`, `renderer.js`) — staging table, AI gate modal, prompt box, progress bar, sort control, destination dropdowns. Default view order is set from the folder's actual Finder sort on each scan (`finderSort` in the scan result), falling back to name |
 
 ## Important context / decisions made with the user

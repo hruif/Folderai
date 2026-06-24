@@ -1,6 +1,6 @@
 'use strict';
 
-// Access scope for FolderAI: which folders the app may operate in (grantedRoots) and
+// Access scope for Folderai: which folders the app may operate in (grantedRoots) and
 // which it must NEVER touch (protectedPaths). Persisted to userData/scope.json.
 //
 // - grantedRoots: the folders the user has authorized. In the sandboxed (App Store)

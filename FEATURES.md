@@ -1,4 +1,4 @@
-# FolderAI — Feature Benchmark
+# Folderai — Feature Benchmark
 
 A privacy-first desktop app that cleans up messy folders with a **local** AI model.
 This is the definition-of-done used to judge release readiness.

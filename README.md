@@ -1,4 +1,4 @@
-# FolderAI — Local Downloads Cleaner
+# Folderai — Local Downloads Cleaner
 
 A privacy-first desktop prototype that tidies up your Downloads folder. All
 processing happens on your machine — classification runs on a **local Ollama

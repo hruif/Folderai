@@ -32,12 +32,12 @@ scripts/sign-mas.sh
 This precompiles the OCR helper, builds the **mas** Electron target with `--no-asar`,
 embeds the profile, bakes your Team ID into `build/entitlements.mas.plist`, signs the
 app + every nested binary (Electron helpers, `ocr-helper`, node-llama-cpp `.node`) with
-the inherit entitlements, and produces a signed `FolderAI-<version>.pkg`.
+the inherit entitlements, and produces a signed `Folderai-<version>.pkg`.
 
 ## Upload
 
 - **Transporter.app** (App Store, easiest): drag in the `.pkg`.
-- or CLI: `xcrun altool --upload-app --type osx --file FolderAI-*.pkg --apiKey <KEY_ID> --apiIssuer <ISSUER_ID>`
+- or CLI: `xcrun altool --upload-app --type osx --file Folderai-*.pkg --apiKey <KEY_ID> --apiIssuer <ISSUER_ID>`
 
 Then finish the listing in App Store Connect and submit for review.
 

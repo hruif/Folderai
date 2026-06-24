@@ -1,6 +1,6 @@
 {
   "name": "folderai",
-  "productName": "FolderAI",
+  "productName": "Folderai",
   "version": "0.1.0",
   "description": "Privacy-first downloads-folder cleaner driven by a local Ollama model. Classifies, groups, and quarantines files with a staging-first review UI.",
   "main": "main.js",

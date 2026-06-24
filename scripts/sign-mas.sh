@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build + sign + package FolderAI for the Mac App Store. This is the LAST step toward
+# Build + sign + package Folderai for the Mac App Store. This is the LAST step toward
 # submission; it needs YOUR Apple Developer credentials (see MAS.md for setup).
 #
 # Required env vars:
@@ -8,7 +8,7 @@
 #   MAS_INSTALLER_CERT   "3rd Party Mac Developer Installer: Your Name (TEAMID)"
 #   PROVISION_PROFILE    path to your Mac App Store embedded.provisionprofile
 #
-# Output: a signed FolderAI.pkg ready to upload via Transporter / notarytool.
+# Output: a signed Folderai.pkg ready to upload via Transporter / notarytool.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -38,12 +38,12 @@ cp "$MODEL_SRC" "$STAGE/models/llama3.2-3b.gguf"
 # 2) Build the MAS target (the App Store variant of Electron). --no-asar so the native
 #    modules (node-llama-cpp, ocr-helper) are real files that can be signed.
 echo "› packaging (mas target)…"
-npx --yes @electron/packager . FolderAI \
+npx --yes @electron/packager . Folderai \
   --platform=mas --arch=arm64 --out="$STAGE/out" --overwrite --no-asar \
   --app-bundle-id=com.xintechllc.folderai --app-version="$VERSION" --build-version="$VERSION" \
   --extra-resource="$STAGE/ocr-helper" --extra-resource="$STAGE/inprocess.flag" --extra-resource="$STAGE/models" \
   --ignore='^/dist' --ignore='^/dist-ship' --ignore='^/dist-inprocess' --ignore='^/scripts' --ignore='^/build' --ignore='^/\.git'
-APP="$STAGE/out/FolderAI-mas-arm64/FolderAI.app"
+APP="$STAGE/out/Folderai-mas-arm64/Folderai.app"
 [ -d "$APP" ] || { echo "build failed: $APP missing"; exit 1; }
 
 # 3) Embed the provisioning profile.
@@ -65,7 +65,7 @@ npx --yes @electron/osx-sign "$APP" \
   --gatekeeper-assess=false
 
 # 6) Build the signed installer package for App Store Connect.
-PKG="$STAGE/FolderAI-$VERSION.pkg"
+PKG="$STAGE/Folderai-$VERSION.pkg"
 echo "› building signed installer…"
 productbuild --component "$APP" /Applications --sign "$MAS_INSTALLER_CERT" "$PKG"
 
