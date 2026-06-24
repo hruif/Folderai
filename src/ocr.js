@@ -6,34 +6,42 @@ const path = require('path');
 const { execFile, execFileSync } = require('child_process');
 
 // On-device OCR using the macOS Vision framework via a tiny Swift helper.
-// The helper is compiled once (lazily) into a cached binary; if Swift isn't
-// available or compilation fails, OCR degrades to '' (no crash).
+// SANDBOX-SAFE: packaged builds bundle a PRECOMPILED helper binary (built at package
+// time — see scripts/build.sh), so nothing is compiled at runtime (`swiftc` is
+// forbidden by the App Store sandbox). In dev (unpackaged) we fall back to compiling
+// once. If no helper is available, OCR degrades to empty (no crash).
 
 const SRC = path.join(__dirname, '..', 'native', 'ocr.swift');
-// Write the binary somewhere always-writable (the app bundle may be read-only).
-// Versioned name → bumping it forces a recompile when the Swift source changes.
-const BIN = path.join(os.tmpdir(), 'folderai-imgproc-v2');
+const DEV_BIN = path.join(os.tmpdir(), 'folderai-imgproc-v2'); // dev-only compiled cache
 
-let ready = null; // null = not attempted, true/false after
+// Resolve the helper binary, preferring a bundled precompiled one over any compile.
+function locate() {
+  if (process.platform !== 'darwin') return null;
+  // 1) Bundled in a packaged build (Resources/ocr-helper) — the App Store path.
+  try { const p = path.join(process.resourcesPath || '', 'ocr-helper'); if (fs.existsSync(p)) return p; } catch { /* */ }
+  // 2) A precompiled helper committed/placed next to the source (optional dev convenience).
+  try { const p = path.join(__dirname, '..', 'native', 'ocr-helper'); if (fs.existsSync(p)) return p; } catch { /* */ }
+  // 3) Dev fallback: compile once to tmp. NOT reached in the sandboxed build (a bundled
+  //    binary is always present there), so no swiftc runs under the sandbox.
+  try { if (fs.existsSync(DEV_BIN)) return DEV_BIN; } catch { /* */ }
+  try { execFileSync('swiftc', ['-O', SRC, '-o', DEV_BIN], { stdio: 'ignore', timeout: 90000 }); if (fs.existsSync(DEV_BIN)) return DEV_BIN; } catch { /* no toolchain */ }
+  return null;
+}
+
+let resolved; // undefined = not attempted; string path | null after
 function ensureBinary() {
-  if (ready !== null) return ready;
-  try { if (fs.existsSync(BIN)) { ready = true; return true; } } catch { /* ignore */ }
-  try {
-    execFileSync('swiftc', ['-O', SRC, '-o', BIN], { stdio: 'ignore', timeout: 90000 });
-    ready = fs.existsSync(BIN);
-  } catch {
-    ready = false; // no Swift toolchain / build failed → OCR unavailable
-  }
-  return ready;
+  if (resolved === undefined) resolved = locate();
+  return resolved;
 }
 
 // Returns { text, labels } for an image — text from OCR, labels from scene/object
 // classification. Never throws (degrades to empty).
 function analyzeImage(filePath) {
   const empty = { text: '', labels: [] };
-  if (process.platform !== 'darwin' || !ensureBinary()) return Promise.resolve(empty);
+  const bin = ensureBinary();
+  if (!bin) return Promise.resolve(empty);
   return new Promise((resolve) => {
-    execFile(BIN, [filePath], { timeout: 8000, maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
+    execFile(bin, [filePath], { timeout: 8000, maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
       if (err) return resolve(empty);
       try {
         const o = JSON.parse(String(stdout || '').trim());
