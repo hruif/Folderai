@@ -1032,6 +1032,7 @@ async function renderScope() {
 }
 $('add-protected').addEventListener('click', async () => { await window.api.addProtected(); renderScope(); });
 $('grant-folder').addEventListener('click', async () => { await window.api.grantFolder(); renderScope(); });
+$('view-licenses').addEventListener('click', () => window.api.openLicenses());
 
 // Quick collapse/expand all folders in the tree.
 $('collapse-all').addEventListener('click', () => {

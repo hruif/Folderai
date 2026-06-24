@@ -21,6 +21,17 @@ const DEFAULT_URL = process.env.FA_MODEL_URL || '';
 function modelDir(userData) { return path.join(userData, 'models'); }
 function modelPath(userData) { return path.join(modelDir(userData), MODEL_FILE); }
 
+// A model bundled inside the app (Resources/models/<file>) — the App Store path. It's
+// read-only but node-llama-cpp only reads it, and it lives inside the app bundle so the
+// sandbox can reach it (unlike a user's external Ollama blob). Used as-is, no copy.
+function bundledModelPath() {
+  try {
+    const p = path.join(process.resourcesPath || '', 'models', MODEL_FILE);
+    if (fs.existsSync(p) && fs.statSync(p).size > 1e9) return p;
+  } catch { /* not packaged / not bundled */ }
+  return null;
+}
+
 function isGGUF(file) {
   try { const fd = fs.openSync(file, 'r'); const b = Buffer.alloc(4); fs.readSync(fd, b, 0, 4, 0); fs.closeSync(fd); return b.toString('latin1') === 'GGUF'; }
   catch { return false; }
@@ -72,6 +83,8 @@ async function downloadWithProgress(url, dst, onPct) {
 
 // Ensure the gguf exists in userData; acquire it if missing. onProgress({phase, pct}).
 async function ensureModel(userData, onProgress = () => {}) {
+  const bundled = bundledModelPath();
+  if (bundled) return bundled; // App Store: the model ships inside the app — use it directly
   const dst = modelPath(userData);
   if (fs.existsSync(dst) && fs.statSync(dst).size > 1e9) return dst;
   fs.mkdirSync(modelDir(userData), { recursive: true });

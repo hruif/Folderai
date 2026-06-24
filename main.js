@@ -319,6 +319,9 @@ ipcMain.handle('add-protected', async () => {
 });
 ipcMain.handle('remove-protected', (_e, p) => ensureScope().removeProtected(p));
 
+// Open the bundled third-party licenses (Llama 3.2 Community License + AUP + NOTICE).
+ipcMain.handle('open-licenses', () => { try { return shell.openPath(path.join(__dirname, 'licenses', 'llama')); } catch { return null; } });
+
 // Cache of the last scan's destination folders (across locations), so the AI
 // passes can route files into the user's real structure.
 let lastScan = { folder: null, destinations: [] };

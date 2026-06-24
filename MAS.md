@@ -43,10 +43,13 @@ Then finish the listing in App Store Connect and submit for review.
 
 ## Things to know (from the research + the sandbox spike)
 
-- **First-run model download** must be wired before submission: a clean Mac has no
-  Ollama blob, so set `FA_MODEL_URL` (`src/model.js`) to a hosted gguf and confirm the
-  Llama 3.2 license terms. Until then the app only finds a model on machines that
-  already have Ollama. *(This is the one functional gap left for a real submission.)*
+- **The model is BUNDLED** (no first-run download). `scripts/sign-mas.sh` copies the
+  gguf into `Resources/models/llama3.2-3b.gguf`; `src/model.js` uses that bundled copy
+  directly (the sandbox can't reach an external Ollama blob). Apple hosts the ~2 GB app
+  for free, so it works offline immediately. (Alternative — a small app + first-run
+  download via `FA_MODEL_URL` — remains supported in `src/model.js` if ever preferred.)
+  Bundling redistributes the Llama 3.2 weights, so comply with the Llama 3.2 license
+  (attribution + bundled license/notice; see the in-app About/credits).
 - **Entitlements are deliberately minimal.** Do NOT add
   `com.apple.security.cs.allow-unsigned-executable-memory` — it's banned for App Store
   apps. Only `allow-jit` is allowed (and present).

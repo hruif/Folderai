@@ -26,13 +26,22 @@ echo "› compiling OCR helper…"
 swiftc -O native/ocr.swift -o "$STAGE/ocr-helper"
 echo "inprocess" > "$STAGE/inprocess.flag"
 
+# 1b) Bundle the model so the sandboxed app works offline with no download (Apple hosts
+#     the binary). The sandbox can't reach ~/.ollama, so the model must ship inside.
+#     Source: the local Ollama gguf blob (set FA_GGUF_SRC to override with another gguf).
+echo "› bundling model…"
+mkdir -p "$STAGE/models"
+MODEL_SRC="${FA_GGUF_SRC:-$(ls -S "$HOME"/.ollama/models/blobs/sha256-* 2>/dev/null | head -1)}"
+[ -n "$MODEL_SRC" ] && [ -f "$MODEL_SRC" ] || { echo "No gguf to bundle (set FA_GGUF_SRC=/path/to/model.gguf)"; exit 1; }
+cp "$MODEL_SRC" "$STAGE/models/llama3.2-3b.gguf"
+
 # 2) Build the MAS target (the App Store variant of Electron). --no-asar so the native
 #    modules (node-llama-cpp, ocr-helper) are real files that can be signed.
 echo "› packaging (mas target)…"
 npx --yes @electron/packager . FolderAI \
   --platform=mas --arch=arm64 --out="$STAGE/out" --overwrite --no-asar \
   --app-bundle-id=com.xintechllc.folderai --app-version="$VERSION" --build-version="$VERSION" \
-  --extra-resource="$STAGE/ocr-helper" --extra-resource="$STAGE/inprocess.flag" \
+  --extra-resource="$STAGE/ocr-helper" --extra-resource="$STAGE/inprocess.flag" --extra-resource="$STAGE/models" \
   --ignore='^/dist' --ignore='^/dist-ship' --ignore='^/dist-inprocess' --ignore='^/scripts' --ignore='^/build' --ignore='^/\.git'
 APP="$STAGE/out/FolderAI-mas-arm64/FolderAI.app"
 [ -d "$APP" ] || { echo "build failed: $APP missing"; exit 1; }

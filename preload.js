@@ -30,6 +30,7 @@ contextBridge.exposeInMainWorld('api', {
   removeGrant: (p) => ipcRenderer.invoke('remove-grant', p),
   addProtected: () => ipcRenderer.invoke('add-protected'),
   removeProtected: (p) => ipcRenderer.invoke('remove-protected', p),
+  openLicenses: () => ipcRenderer.invoke('open-licenses'),
   execute: (args) => ipcRenderer.invoke('execute', args),
   undo: () => ipcRenderer.invoke('undo'),
   onProgress: (cb) => ipcRenderer.on('progress', (_e, msg) => cb(msg)),
