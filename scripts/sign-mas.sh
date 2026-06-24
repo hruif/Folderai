@@ -45,9 +45,15 @@ npx --yes @electron/packager . Folderai \
   --app-bundle-id=com.xintechllc.folderai --app-version="$VERSION" --build-version="$VERSION" \
   $ICON_ARG \
   --extra-resource="$STAGE/ocr-helper" --extra-resource="$STAGE/inprocess.flag" --extra-resource="$STAGE/models" \
-  --ignore='^/dist' --ignore='^/dist-ship' --ignore='^/dist-inprocess' --ignore='^/scripts' --ignore='^/build' --ignore='^/\.git'
+  --ignore='^/dist' --ignore='^/dist-ship' --ignore='^/dist-inprocess' --ignore='^/scripts' --ignore='^/build' --ignore='^/\.git' \
+  --ignore='^/finder' --ignore='^/docs'
 APP="$STAGE/out/Folderai-mas-arm64/Folderai.app"
 [ -d "$APP" ] || { echo "build failed: $APP missing"; exit 1; }
+
+# 2b) arm64-only apps must target macOS 12.0+ (App Store rejects 10.15 arm64-only without
+#     an x86_64 slice; we ship Apple-Silicon-only, so raise the minimum).
+/usr/libexec/PlistBuddy -c "Set :LSMinimumSystemVersion 12.0" "$APP/Contents/Info.plist" 2>/dev/null \
+  || /usr/libexec/PlistBuddy -c "Add :LSMinimumSystemVersion string 12.0" "$APP/Contents/Info.plist"
 
 # 3) Embed the provisioning profile.
 cp "$PROVISION_PROFILE" "$APP/Contents/embedded.provisionprofile"
