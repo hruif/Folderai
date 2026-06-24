@@ -168,6 +168,9 @@ body.compact tbody td { padding: 3px 8px; font-size: 12px; }
 .scope-path { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
 .scope-empty { color: var(--muted); font-style: italic; }
 .scope-rm { font-size: 11px; padding: 2px 8px; cursor: pointer; }
+.adv-toggle { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 12px; padding: 4px 6px; border-radius: 6px; }
+.adv-toggle:hover { color: var(--text); background: var(--panel-2); }
+.summary-line { font-size: 13px; color: var(--text); }
 
 /* Header right cluster + gear button */
 .header-right { display: flex; align-items: center; gap: 10px; }

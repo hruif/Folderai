@@ -61,8 +61,8 @@ function destChip(a) {
 }
 // The single destination control for any row — shows the outcome, opens the picker.
 function destControl(a) {
-  if (a.action === 'delete') return `<button class="dest-chip dest-del" data-pick="${escapeHtml(a.id)}" title="Choose destination">→ Quarantine ▾</button>`;
-  if (a.action === 'keep') return `<button class="dest-chip dest-keep" data-pick="${escapeHtml(a.id)}" title="Choose destination">Keep in place ▾</button>`;
+  if (a.action === 'delete') return `<button class="dest-chip dest-del" data-pick="${escapeHtml(a.id)}" title="Choose destination">→ Remove ▾</button>`;
+  if (a.action === 'keep') return `<button class="dest-chip dest-keep" data-pick="${escapeHtml(a.id)}" title="Choose destination">Leave here ▾</button>`;
   return destChip(a);
 }
 
@@ -298,22 +298,18 @@ function renderSummary() {
     if (/^Duplicate of /.test(x.reason || '')) dupes++;
   }
   const files = a.length - folders;
-  // Show files (what AI classifies) and folders separately, so the AI progress
-  // denominator (files) lines up with what's displayed here.
-  const itemsPill = folders
-    ? `<span class="pill"><b>${files}</b> files · <b>${folders}</b> folders</span>`
-    : `<span class="pill"><b>${files}</b> files</span>`;
   summary.classList.remove('hidden');
-  summary.innerHTML = `
-    ${itemsPill}
-    <span class="pill" style="color:var(--accent)"><b>${counts.group}</b> to group</span>
-    <span class="pill" style="color:var(--red)"><b>${counts.delete}</b> to quarantine</span>
-    ${dupes ? `<span class="pill" style="color:var(--red)"><b>${dupes}</b> duplicate${dupes > 1 ? 's' : ''}</span>` : ''}
-    <span class="pill"><b>${counts.keep}</b> keep in place</span>
-    <span class="pill"><b>${staged}</b> staged for execution</span>
-    ${aiRunning ? '<span class="pill" style="color:var(--amber)">AI working…</span>' : ''}`;
+  // One plain-English line instead of a wall of chips.
+  const fileWord = `${files} file${files !== 1 ? 's' : ''}${folders ? ` · ${folders} folder${folders !== 1 ? 's' : ''}` : ''}`;
+  const bits = [];
+  if (counts.group) bits.push(`<b>${counts.group}</b> to organize`);
+  if (counts.delete) bits.push(`<b style="color:var(--red)">${counts.delete}</b> to remove`);
+  if (dupes) bits.push(`<b>${dupes}</b> duplicate${dupes > 1 ? 's' : ''}`);
+  if (counts.keep) bits.push(`<b>${counts.keep}</b> left alone`);
+  summary.innerHTML = `<span class="summary-line">${fileWord}${bits.length ? ' — ' + bits.join(', ') : ''}.${aiRunning ? ' <span style="color:var(--amber)">Reviewing…</span>' : ''}</span>`;
   // Never allow executing while the AI is mid-run (the plan is still changing).
   executeBtn.disabled = aiRunning || awaitingDecision || staged === 0;
+  executeBtn.textContent = staged ? `Clean up · ${staged} change${staged !== 1 ? 's' : ''}` : 'Clean up';
 }
 
 // Dispatch to the active view and toggle which container is visible.
@@ -327,10 +323,22 @@ async function render() {
   $('sort-wrap').classList.toggle('hidden', preview); // sort applies to the list only
   if (preview) await renderPreview(); else renderList();
   if (st && tableWrap.scrollTop !== st) tableWrap.scrollTop = st; // keep the view put on in-place edits
-  // The plain-language request box only makes sense once there's a plan to refine.
-  $('prompt-row').classList.toggle('hidden', !state.actions.length);
+  applyAdvanced(); // show the Advanced toggle once there's a plan; honor open/closed state
   persistPlan(); // keep the on-disk plan in sync with any edits
 }
+
+// Simple by default: the request box + view/search controls live under "Advanced",
+// revealed only when the user asks. The toggle itself appears once there's a plan.
+let advancedOpen = false;
+function applyAdvanced() {
+  const hasPlan = !!state.actions.length;
+  $('adv-toggle').classList.toggle('hidden', !hasPlan);
+  const show = hasPlan && advancedOpen;
+  $('prompt-row').classList.toggle('hidden', !show);
+  document.querySelector('.toolbar').classList.toggle('hidden', !show);
+  $('adv-toggle').textContent = advancedOpen ? '▾ Advanced' : '▸ Advanced';
+}
+$('adv-toggle').addEventListener('click', () => { advancedOpen = !advancedOpen; applyAdvanced(); });
 
 // Save the staged plan (with the user's manual edits) so it survives a restart.
 // Debounced. Skips mid-run / pre-decision states — the final render persists the
@@ -1255,12 +1263,12 @@ async function runAI() {
         window.api.setSetting('secondsPerUnit', learnedSecPerUnit);
       }
     }
-    const reused = result.hits ? ` (${result.hits} reused from cache, ${result.classified} newly classified)` : '';
+    const reused = result.hits ? ` (${result.hits} reused, ${result.classified} newly reviewed)` : '';
     setStatus(result.cancelled
-      ? `AI classification stopped — only finished files are staged; the rest are left unstaged.${reused}`
-      : `AI classification complete for ${fileCount} files${reused}.`);
+      ? `Stopped — only the files reviewed so far are included; the rest are left as-is.${reused}`
+      : `Reviewed ${fileCount} files.${reused}`);
   } catch (err) {
-    setStatus(`AI classification failed: ${err.message}`);
+    setStatus(`Couldn't finish reviewing: ${err.message}`);
   } finally {
     aiRunning = false;   // clear before hide/render so late events are ignored
     hideProgress();
@@ -1362,15 +1370,15 @@ $('execute').addEventListener('click', async () => {
   const dels = staged.filter((a) => a.action === 'delete').length;
   const moves = staged.filter((a) => a.action === 'group').length;
   const ok = confirm(
-    `Execute staged changes?\n\n` +
-    `• ${moves} item(s) moved into category folders\n` +
-    `• ${dels} item(s) moved to _CleanupQuarantine (recoverable)\n\n` +
+    `Clean up now?\n\n` +
+    `• ${moves} item(s) organized into folders\n` +
+    `• ${dels} item(s) moved to a Removed folder you can undo\n\n` +
     `Nothing is permanently deleted.`);
   if (!ok) return;
-  setStatus('Executing…');
+  setStatus('Cleaning up…');
   try {
     const r = await window.api.execute({ folder: state.folder, actions: state.actions });
-    setStatus(`Done — ${r.moved} moved, ${r.deleted} quarantined, ${r.kept} kept` +
+    setStatus(`Done — ${r.moved} moved, ${r.deleted} removed, ${r.kept} left alone` +
       (r.errors.length ? `, ${r.errors.length} error(s): ${r.errors.join('; ')}` : ''));
     // Offer to undo this cleanup.
     $('undo').classList.toggle('hidden', !(r.operations && r.operations.length));

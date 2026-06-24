@@ -12,7 +12,7 @@
       <span class="logo">🧹</span>
       <div>
         <h1>FolderAI</h1>
-        <p class="sub">Local, private downloads cleanup · staging-first</p>
+        <p class="sub">Private · on-device — nothing moves until you say so</p>
       </div>
     </div>
     <div class="header-right">
@@ -35,6 +35,8 @@
     <div class="row sub-row">
       <span class="dest-label" id="dest-summary">Destinations: Downloads, Documents, Desktop</span>
       <button id="add-location" class="small">+ Add location…</button>
+      <span class="spacer"></span>
+      <button id="adv-toggle" class="adv-toggle hidden" title="Tell FolderAI what to do, change the view, search">▸ Advanced</button>
     </div>
   </section>
 
@@ -43,7 +45,7 @@
   <div id="ai-gate" class="ai-gate-overlay hidden">
     <div class="ai-gate-card">
       <div class="ai-gate-head">
-        <strong>Run AI classification?</strong>
+        <strong>Use AI to organize your files?</strong>
         <span id="ai-gate-info" class="ai-gate-info"></span>
       </div>
       <div class="ai-guidance-wrap">
@@ -53,11 +55,11 @@
       </div>
       <div class="ai-gate-options">
         <label class="ai-toggle"><input type="checkbox" id="ai-rename" /> Suggest cleaner filenames</label>
-        <label class="ai-toggle"><input type="checkbox" id="ignore-cache" /> Re-run fresh (ignore cache)</label>
+        <label class="ai-toggle"><input type="checkbox" id="ignore-cache" /> Re-run from scratch</label>
       </div>
       <div class="ai-gate-actions">
         <button id="ai-skip">Skip — just show my files</button>
-        <button id="ai-start" class="primary">Start AI classification</button>
+        <button id="ai-start" class="primary">Use AI</button>
       </div>
     </div>
   </div>
@@ -134,7 +136,7 @@
     <button id="stop-ai" class="small">Stop</button>
   </section>
 
-  <section class="toolbar">
+  <section class="toolbar hidden">
     <div class="view-toggle">
       <button id="view-list" class="seg active">List</button><button id="view-preview" class="seg">Preview</button>
     </div>
@@ -159,14 +161,14 @@
     <table id="plan">
       <thead>
         <tr>
-          <th class="c-inc">Stage</th>
+          <th class="c-inc">Include</th>
           <th class="c-name">Item</th>
-          <th class="c-cat">Destination</th>
-          <th class="c-reason">Reason</th>
+          <th class="c-cat">Goes to</th>
+          <th class="c-reason">Why</th>
         </tr>
       </thead>
       <tbody id="plan-body">
-        <tr class="empty"><td colspan="4">Choose a folder and scan to see a staged plan.</td></tr>
+        <tr class="empty"><td colspan="4">Choose a folder and scan to see the plan.</td></tr>
       </tbody>
     </table>
     <div id="preview" class="preview hidden"></div>
@@ -175,7 +177,7 @@
   <footer>
     <div id="status" class="status"></div>
     <button id="undo" class="hidden">Undo last cleanup</button>
-    <button id="execute" class="danger" disabled>Execute staged changes</button>
+    <button id="execute" class="primary" disabled>Clean up</button>
   </footer>
 
   <!-- "What the request changed" report -->
@@ -200,8 +202,8 @@
         <button id="picker-close" class="small">Close</button>
       </div>
       <div class="picker-quick">
-        <button id="pick-keep" class="small">Keep in place</button>
-        <button id="pick-quarantine" class="small">Move to Quarantine</button>
+        <button id="pick-keep" class="small">Leave here</button>
+        <button id="pick-quarantine" class="small">Remove</button>
       </div>
       <input id="picker-filter" type="text" placeholder="Filter folders…" />
       <div id="picker-tree" class="picker-tree"></div>
