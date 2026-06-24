@@ -140,7 +140,7 @@ body.compact tbody td { padding: 3px 8px; font-size: 12px; }
 /* Focused modal pop-up — files stay visible (dimmed) behind it. */
 .ai-gate-overlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(8, 10, 14, 0.55); backdrop-filter: blur(2px); }
 .ai-gate-overlay.hidden { display: none; }
-.ai-gate-card { width: 560px; max-width: 92vw; background: var(--panel); border: 1px solid var(--accent); border-radius: 14px; padding: 20px 22px; box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55); }
+.ai-gate-card { width: 560px; max-width: 92vw; max-height: 88vh; overflow-y: auto; background: var(--panel); border: 1px solid var(--accent); border-radius: 14px; padding: 20px 22px; box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55); }
 .ai-gate-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
 .ai-gate-head strong { font-size: 16px; }
 .ai-gate-info { color: var(--amber); font-size: 12px; }

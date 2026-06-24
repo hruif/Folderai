@@ -159,6 +159,8 @@ function createWindow() {
   win = new BrowserWindow({
     width: 1180,
     height: 820,
+    minWidth: 900,
+    minHeight: 620,
     title: 'Folderai',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

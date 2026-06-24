@@ -325,6 +325,7 @@ async function render() {
   if (preview) await renderPreview(); else renderList();
   if (st && tableWrap.scrollTop !== st) tableWrap.scrollTop = st; // keep the view put on in-place edits
   applyAdvanced(); // show the Advanced toggle once there's a plan; honor open/closed state
+  updateDestSummary(); // keep "Files into: …" in sync with any added destinations
   persistPlan(); // keep the on-disk plan in sync with any edits
 }
 
@@ -1031,16 +1032,20 @@ async function renderScope() {
   try { s = await window.api.getScope(); } catch { return; }
   const tilde = (p) => String(p).replace(/^\/Users\/[^/]+/, '~');
   const fill = (el, paths, removeFn, emptyMsg) => {
+    if (!el) return;
     el.innerHTML = paths.length
       ? paths.map((it) => { const p = typeof it === 'string' ? it : it.path; return `<li><span class="scope-path" title="${p}">${tilde(p)}</span><button class="scope-rm" data-path="${p}">Remove</button></li>`; }).join('')
       : `<li class="scope-empty">${emptyMsg}</li>`;
     el.querySelectorAll('.scope-rm').forEach((b) => b.addEventListener('click', async () => { await removeFn(b.dataset.path); renderScope(); }));
   };
   fill($('protected-list'), s.protected || [], (p) => window.api.removeProtected(p), 'Nothing protected yet.');
-  fill($('granted-list'), s.granted || [], (p) => window.api.removeGrant(p), 'No folders granted yet.');
+  // Added destinations (beyond the always-included trio). Removing one is local until re-scan.
+  fill($('dest-extra-list'), state.extraRoots, (p) => { state.extraRoots = state.extraRoots.filter((x) => x !== p); updateDestSummary(); return Promise.resolve(); }, 'None added — Downloads, Documents, Desktop are always included.');
+}
+function updateDestSummary() {
+  $('dest-summary').textContent = `Files into: Downloads, Documents, Desktop${state.extraRoots.length ? ', ' + state.extraRoots.join(', ') : ''}`;
 }
 $('add-protected').addEventListener('click', async () => { await window.api.addProtected(); renderScope(); });
-$('grant-folder').addEventListener('click', async () => { await window.api.grantFolder(); renderScope(); });
 $('view-licenses').addEventListener('click', () => window.api.openLicenses());
 
 // Quick collapse/expand all folders in the tree.
@@ -1152,32 +1157,31 @@ function estimateMinutes() {
 //  - SEEDED from the upfront estimate so it starts conservative, and
 //  - clamped: it drops freely toward the truth but can only creep UP gently — never a jump.
 const ETA_PAD = 1.3;
+const ETA_MIN_FILES = 10; // calibrate over the first ~10 freshly-classified files…
+const ETA_MIN_SECS = 5;   // …and at least this long, before showing a number
 let etaT0 = 0;            // time of first model progress (cache burst excluded)
 let etaD0 = 0;            // modelDone at that point
-let etaShown = Infinity;  // last displayed seconds (seeded at run start)
-let etaReseeded = false;  // discounted the cached portion yet?
+let etaShown = Infinity;  // last displayed seconds; Infinity = not calibrated yet
 let runStartedAt = 0;
+// Measure the ACTUAL post-warmup rate over the first ~10 files, then project from it —
+// no stale seed (which was off 2-3x). Show "estimating…" until then; the first real
+// number is the measured one, after which it stays stable (drops freely, creeps up gently).
 function computeEta(done, total, hits) {
-  // The seed counted ALL files; once we know how many were reused from cache,
-  // discount them — otherwise a 472-of-500-cached run still shows the full estimate.
-  if (!etaReseeded && total > 0 && etaShown !== Infinity) {
-    etaShown = Math.max(1, etaShown * (total - (hits || 0)) / total);
-    etaReseeded = true;
-  }
-  const md = Math.max(0, done - (hits || 0));
+  const md = Math.max(0, done - (hits || 0)); // files actually classified (past the cache burst)
   const now = Date.now();
-  if (md >= 1) {
-    if (!etaT0) { etaT0 = now; etaD0 = md; }
+  if (md >= 1 && !etaT0) { etaT0 = now; etaD0 = md; }
+  if (etaT0) {
     const dT = (now - etaT0) / 1000;
     const dD = md - etaD0;
-    if (dT >= 8 && dD >= 3) {
-      const rate = dD / dT;                                  // cumulative — stable
-      const live = ((total - done) / rate) * ETA_PAD;        // padded — lean high
-      if (live < etaShown) etaShown = live;                  // drop freely toward the truth
-      else etaShown = Math.min(live, etaShown * 1.08 + 5);   // creep up gently — no spikes
+    if (dT >= ETA_MIN_SECS && dD >= ETA_MIN_FILES) {
+      const rate = dD / dT;                                 // measured, post-warmup
+      const live = ((total - done) / rate) * ETA_PAD;       // padded — lean slightly high
+      if (etaShown === Infinity) etaShown = live;           // first real measurement — trust it
+      else if (live < etaShown) etaShown = live;            // drop freely toward the truth
+      else etaShown = Math.min(live, etaShown * 1.1 + 5);   // creep up gently — no spikes
     }
   }
-  return etaShown === Infinity ? '' : fmtDuration(etaShown);
+  return etaShown === Infinity ? '' : fmtDuration(etaShown); // '' → caller shows "estimating…"
 }
 
 scanBtn.addEventListener('click', async () => {
@@ -1231,11 +1235,11 @@ async function runAI() {
   const guidance = $('ai-guidance').value;
   const fileCount = state.actions.filter((a) => !a.isDir).length;
   aiRunning = true;
-  // Seed the live ETA from the conservative upfront estimate so it starts HIGH and
-  // ratchets toward the truth — overestimate-and-converge, never wild swings.
-  etaT0 = 0; etaD0 = 0; etaReseeded = false;
-  etaShown = Math.max(1, fileUnits(state.actions).units * (learnedSecPerUnit || DEFAULT_SEC_PER_UNIT));
-  runStartedAt = Date.now(); // for full-wall-clock calibration of the estimate
+  // Start uncalibrated ("estimating…"); computeEta measures the real rate over the
+  // first ~10 files instead of trusting a stale seed that was off 2-3x.
+  etaT0 = 0; etaD0 = 0;
+  etaShown = Infinity;
+  runStartedAt = Date.now(); // for full-wall-clock calibration of the learned rate
   state.selected.clear();    // a new plan invalidates any tree selection
   state.clipboard = [];
   $('stop-ai').disabled = false;
@@ -1309,12 +1313,12 @@ $('stop-ai').addEventListener('click', () => {
 });
 
 $('add-location').addEventListener('click', async () => {
-  const dir = await window.api.selectFolder();
+  const dir = await window.api.selectFolder(); // also grants sandbox access (records a bookmark)
   if (!dir) return;
   if (!state.extraRoots.includes(dir)) state.extraRoots.push(dir);
-  $('dest-summary').textContent =
-    `Files into: Downloads, Documents, Desktop${state.extraRoots.length ? ', ' + state.extraRoots.join(', ') : ''}`;
-  setStatus(`Added destination location: ${dir}. Re-scan to include its folders.`);
+  updateDestSummary();
+  renderScope();
+  setStatus(`Added destination: ${dir}. Re-scan to include its folders.`);
 });
 
 $('clear-cache').addEventListener('click', async () => {
