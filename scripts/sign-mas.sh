@@ -20,6 +20,7 @@ cd "$(dirname "$0")/.."
 
 STAGE="/tmp/folderai-mas"; rm -rf "$STAGE"; mkdir -p "$STAGE"
 VERSION="$(node -p "require('./package.json').version || '1.0.0'")"
+BUILD="${FA_BUILD:-$(date +%Y.%m%d.%H%M)}"  # CFBundleVersion — must increase on every upload
 
 # 1) Precompile the OCR helper + set the in-process backend marker (App Store = no Ollama).
 echo "› compiling OCR helper…"
@@ -42,7 +43,7 @@ ICON_ARG=""; [ -f build/icon.icns ] && ICON_ARG="--icon=build/icon"  # packager 
 [ -z "$ICON_ARG" ] && echo "  ⚠︎ no build/icon.icns — App Store requires an app icon; add one before submitting."
 npx --yes @electron/packager . Folderai \
   --platform=mas --arch=arm64 --out="$STAGE/out" --overwrite --no-asar \
-  --app-bundle-id=com.xintechllc.folderai --app-version="$VERSION" --build-version="$VERSION" \
+  --app-bundle-id=com.xintechllc.folderai --app-version="$VERSION" --build-version="$BUILD" \
   $ICON_ARG \
   --extra-resource="$STAGE/ocr-helper" --extra-resource="$STAGE/inprocess.flag" --extra-resource="$STAGE/models" \
   --ignore='^/dist' --ignore='^/dist-ship' --ignore='^/dist-inprocess' --ignore='^/scripts' --ignore='^/build' --ignore='^/\.git' \
@@ -61,10 +62,15 @@ cp "$PROVISION_PROFILE" "$APP/Contents/embedded.provisionprofile"
 # 4) Bake the real Team ID into the parent entitlements (application-groups).
 sed "s/__TEAMID__/$APPLE_TEAM_ID/g" build/entitlements.mas.plist > "$STAGE/parent.plist"
 
+# 4b) Strip com.apple.quarantine (+ any other xattrs) — the profile copied from ~/Downloads
+#     carries it, and the App Store rejects it (ITMS-91109). Must be BEFORE signing so the
+#     signature seals clean files.
+xattr -cr "$APP"
+
 # 5) Sign inside-out via @electron/osx-sign (programmatic API — its 2.x CLI dropped
 #    --entitlements). Main app → our parent.plist; Electron helpers + ocr-helper +
 #    node-llama-cpp .node → osx-sign's default child (app-sandbox + inherit).
-echo "› signing…"
+echo "› signing… (build $BUILD)"
 node scripts/sign-app.mjs "$APP" "$STAGE/parent.plist"
 
 # 6) Build the signed installer package for App Store Connect.
