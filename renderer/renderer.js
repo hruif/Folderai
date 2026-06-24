@@ -229,7 +229,7 @@ async function restorePlan() {
   state.destinations = saved.destinations || [];
   state.userFolders = saved.userFolders || [];
   state.sort = saved.sort || 'name';
-  state.view = saved.view || 'preview';
+  state.view = 'preview'; // always start a restored plan in the grouped view
   if (state.folder) folderInput.value = state.folder;
   $('sort').value = state.sort;
   awaitingDecision = false;

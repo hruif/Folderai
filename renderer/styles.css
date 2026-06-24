@@ -279,7 +279,7 @@ tbody td { padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-al
 tbody tr { content-visibility: auto; contain-intrinsic-size: auto 48px; }
 tbody tr.excluded { opacity: .4; }
 tbody tr.row-delete td.c-name { color: var(--red); }
-.c-inc { width: 52px; text-align: center; }
+.c-inc { width: 72px; text-align: center; }
 .c-cat { width: 30%; }
 .c-reason { width: 34%; }
 .c-cat, .c-reason { overflow: hidden; } /* keep chips/text inside their columns */

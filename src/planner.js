@@ -221,15 +221,44 @@ function jaccard(a, b) {
 // Decide ONE destination for a whole cluster (a subject group). Route to an
 // existing folder ONLY on real token overlap (so unrelated folders aren't
 // grabbed); otherwise propose a new, well-named folder.
+// Distinctive identifiers in a name: standalone 3-digit course codes (444) and
+// letter+digit course codes (cse444). Deliberately NOT bare 4-digit numbers, so
+// years (2024) don't cause false matches.
+function codesOf(s) {
+  const out = new Set();
+  const n = String(s || '').toLowerCase();
+  for (const m of n.matchAll(/(?<!\d)\d{3}(?!\d)/g)) out.add(m[0]);
+  for (const m of n.matchAll(/[a-z]{2,6}\d{3,4}/g)) out.add(m[0]);
+  return out;
+}
+function sharesCode(codes, name) {
+  if (!codes.size) return false;
+  const other = codesOf(name);
+  for (const c of codes) if (other.has(c)) return true;
+  return false;
+}
+
 function destForGroup(group, kind, dests) {
   const clean = group.replace(/[\\/:*?"<>|]/g, '').trim().slice(0, 60) || 'Misc';
-  let best = null, bestScore = 0;
+  const gcodes = codesOf(group);
+  let best = null, bestScore = 0, bestSub = null;
   for (const d of dests) {
     const name = d.label.split('/').pop();
-    const score = jaccard(group, name);
-    if (score > bestScore) { bestScore = score; best = d; }
+    let score = jaccard(group, name);
+    if (sharesCode(gcodes, name)) score = Math.max(score, 0.9);          // "444" ↔ "cse444"
+    if (score > bestScore) { bestScore = score; best = d; bestSub = null; }
+    // Also match the folder's EXISTING subfolders (one level deeper), so "444" lands
+    // in the user's ~/Documents/CSE/444 rather than a fresh folder.
+    for (const sf of (d.subfolders || [])) {
+      let ss = jaccard(group, sf);
+      if (sharesCode(gcodes, sf)) ss = Math.max(ss, 0.95);
+      if (ss > bestScore) { bestScore = ss; best = d; bestSub = sf; }
+    }
   }
-  if (best && bestScore >= 0.6) return { category: best.label, destPath: best.path };
+  if (best && bestScore >= 0.6) {
+    if (bestSub) return { category: `${best.label}/${bestSub}`, destPath: path.join(best.path, bestSub) };
+    return { category: best.label, destPath: best.path };
+  }
   // Only document-type files reach grouping (media is kept), so a new folder goes
   // under ~/Documents by default.
   return { category: `~/Documents/${clean}`, destPath: path.join(os.homedir(), 'Documents', clean) };
@@ -1080,4 +1109,4 @@ async function consolidateFolders(actions, model, signal, onStatus = () => {}) {
   return { changed, folders: cats.length };
 }
 
-module.exports = { planByRules, refineWithModel, applyPrompt, applyRuleRequest, resolveDeepDest, makeItemStreamer, consolidateFolders };
+module.exports = { planByRules, refineWithModel, applyPrompt, applyRuleRequest, destForGroup, resolveDeepDest, makeItemStreamer, consolidateFolders };
