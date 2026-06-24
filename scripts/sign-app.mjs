@@ -6,7 +6,7 @@
 // the application-groups from the provisioning profile.
 //
 // Usage: node scripts/sign-app.mjs <app.app> <parent-entitlements.plist>
-import { signAsync } from '@electron/osx-sign';
+import { sign } from '@electron/osx-sign';
 
 const [app, entitlements] = process.argv.slice(2);
 if (!app || !entitlements) {
@@ -19,7 +19,7 @@ if (!process.env.MAS_APP_CERT || !process.env.PROVISION_PROFILE) {
 }
 
 try {
-  await signAsync({
+  await sign({
     app,
     identity: process.env.MAS_APP_CERT,
     platform: 'mas',

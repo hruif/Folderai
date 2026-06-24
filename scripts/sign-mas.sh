@@ -38,7 +38,7 @@ cp "$MODEL_SRC" "$STAGE/models/llama3.2-3b.gguf"
 # 2) Build the MAS target (the App Store variant of Electron). --no-asar so the native
 #    modules (node-llama-cpp, ocr-helper) are real files that can be signed.
 echo "› packaging (mas target)…"
-ICON_ARG=""; [ -f build/icon.icns ] && ICON_ARG="--icon=build/icon.icns"
+ICON_ARG=""; [ -f build/icon.icns ] && ICON_ARG="--icon=build/icon"  # packager auto-completes .icns
 [ -z "$ICON_ARG" ] && echo "  ⚠︎ no build/icon.icns — App Store requires an app icon; add one before submitting."
 npx --yes @electron/packager . Folderai \
   --platform=mas --arch=arm64 --out="$STAGE/out" --overwrite --no-asar \
