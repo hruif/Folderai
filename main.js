@@ -265,6 +265,7 @@ ipcMain.handle('ollama-status', async () => {
   return {
     available: res.ok,
     installed: res.installed,
+    inProcess: process.env.FA_BACKEND === 'llama', // built-in model, no external Ollama
     models: res.ok ? await ollama.listModels() : [],
   };
 });

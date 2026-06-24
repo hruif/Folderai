@@ -244,7 +244,7 @@ async function refreshOllama() {
   badge.className = 'badge badge-unknown';
   const status = await window.api.ollamaStatus();
   if (status.available) {
-    badge.textContent = `Ollama ready · ${status.models.length} model(s)`;
+    badge.textContent = status.inProcess ? 'On-device model ready' : `Ollama ready · ${status.models.length} model(s)`;
     badge.className = 'badge badge-ok';
     modelSelect.innerHTML = status.models
       .map((m) => `<option value="${m}">${m}</option>`).join('');

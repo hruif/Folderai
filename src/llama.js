@@ -99,8 +99,8 @@ async function ensureServer({ parallelism } = {}) {
   if (parallelism) _parallel = Math.max(1, parallelism);
   return { ok: true, started: false, installed: true }; // in-process: always available
 }
-async function isAvailable() { return !!resolveModelPath(''); }
-async function listModels() { return resolveModelPath('') ? [{ name: 'llama3.2:3b' }] : []; }
+async function isAvailable() { return true; } // the model is built-in (delivered on first use)
+async function listModels() { return [{ name: 'llama3.2:3b' }]; } // always the bundled model
 
 // Free the model + GPU context. MUST run before the process exits or llama.cpp's
 // Metal teardown aborts (the crash dump seen on abrupt exit). Wired to app quit.
