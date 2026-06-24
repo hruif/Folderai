@@ -24,9 +24,11 @@ COMMON=(--platform=darwin --arch=arm64 --overwrite --no-asar --app-bundle-id=com
 
 if [ "$MODE" = "inprocess" ]; then
   echo "inprocess" > "$STAGE/inprocess.flag"
+  rm -rf dist-inprocess/Folderai-darwin-arm64 2>/dev/null || true # avoid case-insensitive-FS ENOTEMPTY
   npx @electron/packager . Folderai --out=dist-inprocess "${COMMON[@]}" "${IGN[@]}" --extra-resource="$STAGE/inprocess.flag" | tail -1
   APP="dist-inprocess/Folderai-darwin-arm64/Folderai.app"
 else
+  rm -rf dist/Folderai-darwin-arm64 2>/dev/null || true
   npx @electron/packager . Folderai --out=dist "${COMMON[@]}" "${IGN[@]}" | tail -1
   APP="dist/Folderai-darwin-arm64/Folderai.app"
 fi
