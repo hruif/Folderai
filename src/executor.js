@@ -4,17 +4,27 @@ const fs = require('fs');
 const path = require('path');
 const { QUARANTINE_DIR } = require('./scanner');
 
-// Move with cross-device fallback (rename fails across volumes).
+// INVARIANT — THIS MODULE NEVER DELETES USER FILES OR FOLDERS.
+// Every action is a MOVE: "delete" relocates to the Quarantine folder (reversible via
+// the restore manifest / undo), "group" and "keep+rename" relocate within granted
+// space. The ONLY fs.rmSync in the app removes the SOURCE of a cross-volume move, and
+// only AFTER the destination copy is verified present (see moveSafe). The user empties
+// Quarantine themselves; the app has no path that destroys their data.
+
+// Move with cross-device fallback (rename fails across volumes). On the cross-volume
+// path we copy, VERIFY the copy landed, and only then remove the source — so an
+// interrupted/failed copy can never cost the user the original.
 function moveSafe(src, dest) {
   try {
     fs.renameSync(src, dest);
   } catch (err) {
-    if (err.code === 'EXDEV') {
-      fs.cpSync(src, dest, { recursive: true });
-      fs.rmSync(src, { recursive: true, force: true });
-    } else {
-      throw err;
-    }
+    if (err.code !== 'EXDEV') throw err;
+    fs.cpSync(src, dest, { recursive: true }); // throws if the copy fails
+    const s = fs.statSync(src);
+    const d = fs.statSync(dest); // throws if the destination isn't there
+    const copied = s.isDirectory() ? d.isDirectory() : (d.isFile() && d.size === s.size);
+    if (!copied) throw new Error(`cross-volume copy not verified for ${src} — source left intact`);
+    fs.rmSync(src, { recursive: true, force: true }); // verified-safe: removing a confirmed-copied source
   }
 }
 
