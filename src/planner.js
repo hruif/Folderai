@@ -144,10 +144,18 @@ function sanitizeName(raw) {
 // Build the renamed filename (proposed base + ORIGINAL extension), or null when
 // the model gave nothing usable or the name wouldn't actually change.
 function buildRename(originalName, proposedBase) {
-  const base = sanitizeName(proposedBase);
+  const ext = path.extname(originalName); // ".pdf"
+  let base = sanitizeName(proposedBase);
   if (!base) return null;
-  const newName = base + path.extname(originalName);
-  if (newName.toLowerCase() === originalName.toLowerCase()) return null;
+  // The model often tacks the extension onto the name ("thing pdf", "thing.pdf");
+  // strip a trailing copy of it so we don't produce "thing pdf.pdf".
+  const extWord = ext.replace(/^\./, '');
+  if (extWord) base = base.replace(new RegExp(`[\\s._-]+${extWord}\\s*$`, 'i'), '').trim();
+  if (!base) return null;
+  const newName = base + ext;
+  // Skip no-ops: same as the original ignoring case, spacing, and punctuation.
+  const norm = (s) => String(s).toLowerCase().replace(/\.[^.]+$/, '').replace(/[^a-z0-9]+/g, '');
+  if (norm(newName) === norm(originalName)) return null;
   return newName;
 }
 
@@ -661,11 +669,17 @@ async function refineWithModel(actions, dests, model, onBatch = () => {}, should
     }
     if (shouldStop()) return;
 
-    for (const it of batch) { // still missing after retries — keep, but DON'T cache
+    for (const it of batch) { // model skipped this file even after retries
       if (seen.has(String(it.id))) continue;
       const idx = idById.get(String(it.id));
       if (actions[idx].action === 'delete') { done += 1; continue; }
-      finalize(it, { keep: true, reason: 'Kept (not classified)' }, false); // not cached → retried next run
+      // DETERMINISTIC RESCUE: run placeByTag with empty tags so an omitted file still
+      // groups via the deterministic filename rules (arXiv id / course-series / "Close
+      // Reading 3"). Without this the 3B's ~30% omission rate strands course files.
+      const m = placeByTag(it, { type: '', subject: '' });
+      m.excerpt = content.get(String(it.id)) || '';
+      if (m.keep) finalize(it, { keep: true, reason: 'Kept (not classified)', excerpt: m.excerpt }, false); // truly nameless → retry next run
+      else { m.reason = 'Grouped by filename'; finalize(it, m, true); } // deterministic group → cache it
     }
   }
 
@@ -706,93 +720,161 @@ async function refineWithModel(actions, dests, model, onBatch = () => {}, should
   return { actions, hits, classified: total - hits };
 }
 
-// Apply a plain-word user request to the staged plan via the model. A FULL pass:
-// batched over every file so nothing is truncated, AND the model is shown the
-// PROPOSED FOLDERS so a request can move/rename a whole folder (e.g. "put all
-// 3-digit codes into CSE" nests 421→CSE/421) — not just individual files.
+// Common "all <ext>" words → file extensions, for the deterministic matcher.
+const EXT_WORDS = {
+  pdf: ['pdf'], doc: ['doc', 'docx'], docx: ['docx'], word: ['doc', 'docx'],
+  txt: ['txt'], text: ['txt', 'md'], csv: ['csv'], zip: ['zip'], spreadsheet: ['csv', 'xlsx', 'xls'],
+  png: ['png'], jpg: ['jpg', 'jpeg'], jpeg: ['jpeg', 'jpg'], gif: ['gif'], video: ['mp4', 'mov', 'avi', 'mkv'],
+};
+const IMG_EXT_RE = /\.(png|jpe?g|heic|heif|gif|webp|tiff?|bmp)$/i;
+
+// DETERMINISTIC matcher for clear bulk patterns ("all 3-digit codes into CSE",
+// "delete all screenshots", "move all PDFs to Finance"). Mutates `actions`, adds
+// changed ids to `changedIds`. Returns { handled } — true if a recognized pattern
+// matched (so we DON'T fall to the model, which can't enumerate reliably).
+function applyRuleRequest(actions, userPrompt, dests, changedIds) {
+  const orig = String(userPrompt || '').trim();
+  const p = orig.toLowerCase();
+  if (!p) return { handled: false };
+  let action = 'group';
+  if (/\b(delete|remove|trash|get rid of|discard)\b/.test(p)) action = 'delete';
+  else if (/\b(keep|leave|don'?t touch|do not touch|ignore)\b/.test(p)) action = 'keep';
+  let target = '';
+  const mt = orig.match(/\b(?:into|in ?to|to|under|in)\s+(?:the\s+|a\s+|my\s+)?(.+?)(?:\s+folder)?\s*$/i);
+  if (mt) { target = mt[1].trim(); if (/^[a-z]{2,4}$/.test(target)) target = target.toUpperCase(); }
+  let pred = null; let codeNest = false;
+  if (/\b(?:3|three)[\s-]?digit\b|course\s*code|class\s*(?:code|number)/.test(p)) {
+    pred = (name) => /(?<!\d)\d{3}(?!\d)/.test(name); codeNest = true;
+  } else if (/screenshots?|screen ?shots?/.test(p)) {
+    pred = (name) => /screenshot|screen ?shot/i.test(name);
+  } else if (/\b(images?|photos?|pictures?)\b/.test(p)) {
+    pred = (name) => IMG_EXT_RE.test(name);
+  } else {
+    const exts = new Set();
+    (p.match(/\.([a-z0-9]{1,5})\b/g) || []).forEach((e) => exts.add(e.slice(1)));
+    const wm = p.match(/\ball\s+([a-z]{2,8})\b/);
+    if (wm) { const w = wm[1]; const key = EXT_WORDS[w] ? w : (EXT_WORDS[w.replace(/s$/, '')] ? w.replace(/s$/, '') : null); if (key) EXT_WORDS[key].forEach((e) => exts.add(e)); }
+    if (exts.size) pred = (name) => exts.has((name.split('.').pop() || '').toLowerCase());
+  }
+  if (!pred) return { handled: false };
+  if (action === 'group' && !target) return { handled: false };
+  let base = `~/Documents/${cleanDest(target)}`;
+  const t = target.toLowerCase();
+  const match = dests.find((d) => { const leaf = d.label.replace(/^~\//, '').toLowerCase(); return leaf === t || leaf.endsWith(`/${t}`); });
+  if (match) base = match.label;
+  for (const a of actions) {
+    if (a.isDir || !pred(a.name)) continue;
+    if (action === 'delete') { a.action = 'delete'; a.category = 'Junk'; a.destPath = null; }
+    else if (action === 'keep') { a.action = 'keep'; a.category = 'Other'; a.destPath = null; }
+    else { let cat = base; if (codeNest) { const code = (a.name.match(/(?<!\d)\d{3}(?!\d)/) || [])[0]; if (code) cat = `${base}/${code}`; } a.action = 'group'; a.category = cat; a.destPath = null; }
+    a.source = 'prompt'; a.include = true; a.reason = 'From your request';
+    a.proposed = { action: a.action, category: a.category, destPath: a.destPath };
+    changedIds.add(String(a.id));
+  }
+  return { handled: true };
+}
+
+// Parse a fuzzy instruction into structured intent (one focused model call) — what
+// the 3B IS good at: { selector, action, target }.
+async function parseIntent(model, userPrompt, dests, signal) {
+  const system = 'You convert a file-organization instruction into structured intent. Respond ONLY with JSON.';
+  const prompt =
+    `Instruction: "${userPrompt}"\n\n` +
+    'Existing destination folders: ' + describeDestinations(dests) + '\n\n' +
+    'Return JSON {"selector":"<short description of WHICH files/folders this targets>",' +
+    '"action":"group|delete|keep","target":"<destination folder name, only if action is group>"}. ' +
+    'Examples: "move my design assets into Assets" → {"selector":"design asset files (logos, mockups, icons)","action":"group","target":"Assets"}. ' +
+    '"delete old installers" → {"selector":"app installer files","action":"delete","target":""}.';
+  try {
+    const d = await ollama.chatJSON({ model, system, prompt, signal });
+    if (d && d.selector) {
+      return {
+        selector: String(d.selector),
+        action: ['group', 'delete', 'keep'].includes(d.action) ? d.action : 'group',
+        target: String(d.target || '').trim(),
+      };
+    }
+  } catch { /* model error */ }
+  return null;
+}
+
+// Per-item INDEPENDENT match against a selector (batched yes/no). The 3B handles
+// this reliably where a bulk remap muddles context. Returns a Set of matching ids.
+async function matchByModel(model, items, selector, signal, onProgress) {
+  const matched = new Set();
+  const BATCH = 25;
+  const nB = Math.max(1, Math.ceil(items.length / BATCH));
+  const system = 'You judge each item independently against a description. Respond ONLY with JSON.';
+  for (let b = 0; b < nB; b += 1) {
+    if (signal && signal.aborted) break;
+    const chunk = items.slice(b * BATCH, b * BATCH + BATCH);
+    const prompt =
+      `For each item, does it match this description: "${selector}"? Judge each INDEPENDENTLY.\n` +
+      'Items: ' + JSON.stringify(chunk.map((it) => ({ id: it.id, name: it.name }))) + '\n' +
+      'Return JSON {"<id>": true|false} for EVERY item.';
+    try {
+      const d = await ollama.chatJSON({ model, system, prompt, signal });
+      if (d) for (const it of chunk) { if (d[it.id] === true || d[String(it.id)] === true) matched.add(String(it.id)); }
+    } catch { /* skip chunk */ }
+    onProgress({ done: b + 1, total: nB });
+  }
+  return matched;
+}
+
+// Apply a plain-word request: deterministic rules first (clear patterns, instant,
+// 100%), else the PER-ITEM pipeline (parse → independent per-item match → apply) —
+// which avoids the bulk-remap context muddle the 3B can't handle.
 async function applyPrompt(actions, userPrompt, model, dests = [], signal, onProgress = () => {}) {
   const byLabel = new Map(dests.map((d) => [d.label, d]));
   const byId = new Map(actions.map((a) => [String(a.id), a]));
   const files = actions.filter((a) => !a.isDir);
   const disp = (cat) => String(cat || '').replace(/^~\/Documents\//, '');
-
-  // Resolve a raw destination string → {category, destPath}: an existing folder
-  // label if it names one, else a new folder under Documents.
   const resolveDest = (raw) => {
     const s = String(raw || '').trim();
     if (byLabel.has(s)) { const e = byLabel.get(s); return { category: e.label, destPath: e.path }; }
     return { category: `~/Documents/${cleanDest(s.replace(/^~\/(?:documents\/)?/i, ''))}`, destPath: null };
   };
-  const placeOf = (a) => (a.action === 'group' ? disp(a.category) : a.action === 'delete' ? 'Quarantine' : 'kept in place');
   const stamp = (a) => { a.source = 'prompt'; a.reason = 'From your request'; a.include = true; a.proposed = { action: a.action, category: a.category, destPath: a.destPath }; };
-
-  // The distinct PROPOSED folders — the structure the user can reorganize wholesale.
-  const folderSet = [...new Set(files.filter((a) => a.action === 'group').map((a) => a.category))];
-  const folderList = folderSet.map((c) => ({ folder: disp(c), files: files.filter((a) => a.category === c).length }));
-
-  const system =
-    'You edit a staged file-cleanup plan. You may move/rename a whole FOLDER ' +
-    '(it applies to every file in it) or change individual FILES. Each gets an ' +
-    'action: "group" (into a folder), "delete" (quarantine), or "keep" (leave in ' +
-    'place). Apply the instruction to EVERYTHING it refers to — folders AND files. Respond ONLY with JSON.';
-
-  const folderRemap = {}; // "<folder>" -> new path | "KEEP" | "DELETE"
-  const fileChanges = [];
-  const BATCH = 60;
-  const nBatches = Math.max(1, Math.ceil(files.length / BATCH));
-  for (let b = 0; b < nBatches; b += 1) {
-    if (signal && signal.aborted) break;
-    const batch = files.slice(b * BATCH, b * BATCH + BATCH).map((a) => ({ id: a.id, name: a.rename || a.name, in: placeOf(a) }));
-    const prompt =
-      `Instruction: "${userPrompt}"\n\n` +
-      'Existing destinations you can move into (use the exact label):\n' + describeDestinations(dests) + '\n\n' +
-      'Currently PROPOSED folders (you can move/rename a whole one):\n' + JSON.stringify(folderList) + '\n\n' +
-      'Files in this batch (with the folder each is in now):\n' + JSON.stringify(batch) + '\n\n' +
-      'Return JSON {"folders":{"<proposed folder>":"<new path | KEEP | DELETE>"},' +
-      '"files":[{"id":"...","action":"group|delete|keep","dest":"<path, only if group>"}]}. ' +
-      'Use "folders" to relocate/rename a WHOLE proposed folder — e.g. to nest "421" under CSE, ' +
-      'return {"421":"CSE/421"}. Use "files" for individual files. A path may be an existing ' +
-      'label or a new one like "~/Documents/CSE/421". Omit anything the instruction does not affect.';
-    onProgress({ done: b, total: nBatches });
-    let data = null;
-    try { data = await ollama.chatJSON({ model, system, prompt, signal }); } catch { /* skip batch */ }
-    if (data && data.folders && typeof data.folders === 'object') Object.assign(folderRemap, data.folders);
-    if (data && Array.isArray(data.files)) fileChanges.push(...data.files);
-    if (data && Array.isArray(data.changes)) fileChanges.push(...data.changes); // some models use "changes"
-  }
-
-  const changedIds = new Set(); // distinct files actually changed (accurate count, no double-apply)
-  // Folder-level remaps → apply to EVERY file in that proposed folder (the bulk op wins).
-  for (const [name, raw] of Object.entries(folderRemap)) {
-    const oldCat = folderSet.find((c) => disp(c) === name || c === name);
-    if (!oldCat) continue;
-    const verb = String(raw).trim().toUpperCase();
-    for (const a of files.filter((x) => x.action === 'group' && x.category === oldCat)) {
-      if (verb === 'KEEP') { a.action = 'keep'; a.category = 'Other'; a.destPath = null; }
-      else if (verb === 'DELETE') { a.action = 'delete'; a.category = 'Junk'; a.destPath = null; }
-      else { const d = resolveDest(raw); if (d.category === a.category) continue; a.action = 'group'; a.category = d.category; a.destPath = d.destPath; }
-      stamp(a); changedIds.add(String(a.id));
-    }
-  }
-  // File-level changes — skip files a folder remap already handled, and drop no-op
-  // echoes (the model often re-lists unaffected files with their current action).
-  for (const ch of fileChanges) {
-    const id = String(ch && ch.id);
-    if (changedIds.has(id)) continue;
+  const changedIds = new Set();
+  const summarize = () => [...changedIds].map((id) => {
     const a = byId.get(id);
-    if (!a || a.isDir) continue;
-    const was = `${a.action}|${a.category}`;
-    const action = ['group', 'delete', 'keep'].includes(ch.action) ? ch.action : a.action;
-    const rawDest = ch.dest ?? ch.category;
-    let cat = a.category; let dp = a.destPath;
-    if (action === 'group' && rawDest) { const d = resolveDest(rawDest); cat = d.category; dp = d.destPath; }
-    else if (action === 'delete') { cat = 'Junk'; dp = null; }
-    else if (action === 'keep') { cat = 'Other'; dp = null; }
-    if (`${action}|${cat}` === was) continue; // no real change — ignore the echo
-    a.action = action; a.category = cat; a.destPath = dp;
-    stamp(a); changedIds.add(id);
+    const to = a.action === 'group' ? disp(a.category) : a.action === 'delete' ? 'Quarantine' : 'kept in place';
+    return `${a.rename || a.name}  →  ${to}`;
+  });
+  const allowDelete = /\b(delete|deletes?|remove|removes?|trash|discard|get rid of|quarantine|purge|clean out)\b/i.test(userPrompt);
+
+  // 1) Deterministic fast path — recognized patterns, no model needed.
+  const rule = applyRuleRequest(actions, userPrompt, dests, changedIds);
+  if (rule.handled) return { actions, changed: changedIds.size, summary: summarize() };
+
+  // 2) Per-item pipeline for fuzzy requests.
+  const intent = await parseIntent(model, userPrompt, dests, signal);
+  if (!intent) return { actions, changed: 0, summary: [] };
+  const action = intent.action;
+  if (action === 'delete' && !allowDelete) return { actions, changed: 0, summary: [] }; // safety rail
+  if (action === 'group' && !intent.target) return { actions, changed: 0, summary: [] };
+
+  // Match folders (if the request is about folders and some exist) else files.
+  const wantsFolders = /\bfolders?\b/i.test(userPrompt);
+  const folderNames = [...new Set(files.filter((a) => a.action === 'group').map((a) => disp(a.category)))];
+  let matchedFiles;
+  if (wantsFolders && folderNames.length) {
+    const mf = await matchByModel(model, folderNames.map((name) => ({ id: name, name })), intent.selector, signal, onProgress);
+    matchedFiles = files.filter((a) => a.action === 'group' && mf.has(disp(a.category)));
+  } else {
+    const mi = await matchByModel(model, files.map((a) => ({ id: a.id, name: a.rename || a.name })), intent.selector, signal, onProgress);
+    matchedFiles = files.filter((a) => mi.has(String(a.id)));
   }
-  return { actions, changed: changedIds.size };
+
+  // Apply: matched items → action. For group, nest a matched folder under target as
+  // target/<folderName>, and matched loose files go directly into target.
+  for (const a of matchedFiles) {
+    if (action === 'delete') { a.action = 'delete'; a.category = 'Junk'; a.destPath = null; }
+    else if (action === 'keep') { a.action = 'keep'; a.category = 'Other'; a.destPath = null; }
+    else { const sub = wantsFolders && a.action === 'group' ? disp(a.category) : ''; const d = resolveDest(sub ? `${intent.target}/${sub}` : intent.target); a.action = 'group'; a.category = d.category; a.destPath = d.destPath; }
+    stamp(a); changedIds.add(String(a.id));
+  }
+  return { actions, changed: changedIds.size, summary: summarize() };
 }
 
 // ---- Folder consolidation (a second pass over the PROPOSED folders) ----

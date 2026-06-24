@@ -28,8 +28,8 @@
       <button id="scan" class="primary">Scan</button>
     </div>
     <div id="prompt-row" class="row prompt-row hidden">
-      <input id="prompt" type="text"
-        placeholder="Plain-word request, e.g. &quot;keep all PDFs in place&quot; or &quot;delete screenshots&quot;" />
+      <textarea id="prompt" rows="1"
+        placeholder="Plain-word request — e.g. &quot;put tax documents in a Taxes folder&quot; or &quot;delete installers&quot;.  Enter = new line · ⌘Enter to apply"></textarea>
       <button id="apply-prompt">Apply request</button>
     </div>
     <div class="row sub-row">
@@ -159,6 +159,19 @@
     <button id="undo" class="hidden">Undo last cleanup</button>
     <button id="execute" class="danger" disabled>Execute staged changes</button>
   </footer>
+
+  <!-- "What the request changed" report -->
+  <div id="change-report" class="ai-gate-overlay hidden">
+    <div class="ai-gate-card">
+      <div class="ai-gate-head">
+        <strong>What your request changed</strong>
+        <span class="spacer"></span>
+        <button id="change-report-close" class="small">Done</button>
+      </div>
+      <p class="settings-help">Each line is a move the model made. Anything not listed was left as-is — compare against what you intended.</p>
+      <div id="change-report-body" class="change-report-body"></div>
+    </div>
+  </div>
 
   <!-- Destination folder picker (slide-in side panel) -->
   <div id="picker-overlay" class="picker-overlay hidden">

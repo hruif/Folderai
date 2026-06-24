@@ -414,13 +414,15 @@ ipcMain.handle('apply-prompt', async (_e, { actions, prompt, model }) => {
   // we want to gauge the model's real limits on these requests first. Full impl +
   // re-add steps are in the memory note "deterministic-request-rules". Every
   // plain-language request currently goes to the model.
+  aiCancelled = false;
+  aiAbort = new AbortController(); // so the Stop button can cancel a long multi-batch pass
   await ollama.ensureServer({ parallelism: getSettings().aiConcurrency });
-  sendProgress('Loading the local model…');
-  const ready = await ollama.warmupModel(model);
+  // (No status text here — the renderer's progress bar shows "loading"/"applying"
+  //  so the footer doesn't get stuck on a stale "Loading the local model…".)
+  const ready = await ollama.warmupModel(model, { signal: aiAbort.signal });
   if (!ready) return { actions, changed: 0, error: `Couldn't start the local model "${model}".` };
-  sendProgress(`Applying request via ${model}…`);
-  return applyPrompt(actions, prompt, model, lastScan.destinations, null,
-    ({ done, total }) => { if (total > 1) sendProgress(`Applying your request… (${done + 1}/${total})`); });
+  return applyPrompt(actions, prompt, model, lastScan.destinations, aiAbort.signal,
+    ({ done, total }) => { if (win && !win.isDestroyed()) win.webContents.send('apply-progress', { done, total }); });
 });
 
 let lastOperations = []; // moves from the most recent execute, for one-step undo

@@ -6,13 +6,28 @@
 
 const { spawn } = require('child_process');
 const fs = require('fs');
+const path = require('path');
 
-const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://localhost:11434';
+// Self-contained "ship" builds bundle the ollama binary + the model under the app's
+// Resources. When present, run a PRIVATE server (own port + models dir) so the app
+// needs zero setup and never clashes with a user's own Ollama on :11434.
+function detectBundle() {
+  try {
+    const bin = path.join(process.resourcesPath || '', 'runtime', 'ollama');
+    const models = path.join(process.resourcesPath || '', 'models');
+    if (fs.existsSync(bin) && fs.existsSync(models)) return { bin, models };
+  } catch { /* not packaged / not bundled */ }
+  return null;
+}
+const BUNDLE = detectBundle();
+const HOSTPORT = BUNDLE ? '127.0.0.1:11435' : '127.0.0.1:11434';
+const OLLAMA_HOST = process.env.OLLAMA_HOST || `http://${HOSTPORT}`;
 
 let serverProc = null; // the `ollama serve` process WE started (if any)
 
-// Locate the ollama binary across common install locations, falling back to PATH.
+// Locate the ollama binary: the bundled one in a ship build, else common installs.
 function findOllamaBin() {
+  if (BUNDLE) return BUNDLE.bin;
   const candidates = [
     '/usr/local/bin/ollama',
     '/opt/homebrew/bin/ollama',
@@ -37,7 +52,8 @@ async function ensureServer({ timeoutMs = 15000, parallelism } = {}) {
     // Reserve exactly as many parallel slots as we'll use, so we don't allocate
     // KV-cache memory for nothing. Parallel handling is the throughput win.
     const slots = String(Math.max(1, parallelism || 2));
-    const env = { ...process.env, OLLAMA_NUM_PARALLEL: process.env.OLLAMA_NUM_PARALLEL || slots };
+    const env = { ...process.env, OLLAMA_NUM_PARALLEL: process.env.OLLAMA_NUM_PARALLEL || slots, OLLAMA_HOST: HOSTPORT };
+    if (BUNDLE) env.OLLAMA_MODELS = BUNDLE.models; // serve the bundled model from a private store
     serverProc = spawn(bin, ['serve'], { detached: true, stdio: 'ignore', env });
     serverProc.unref();
     // If the binary is missing, 'error' fires; swallow so we just report not-ok.
@@ -67,7 +83,7 @@ async function warmupModel(model, { retries = 15, signal } = {}) {
       const res = await fetch(`${OLLAMA_HOST}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, stream: false, options: { num_ctx: 256 }, messages: [{ role: 'user', content: 'ok' }] }),
+        body: JSON.stringify({ model, stream: false, keep_alive: '30m', options: { num_ctx: 256 }, messages: [{ role: 'user', content: 'ok' }] }),
         signal,
       });
       if (res.ok) { await res.json().catch(() => {}); return true; } // model loaded + serving
@@ -125,6 +141,7 @@ async function chatJSON({ model, system, prompt, timeoutMs = 120000, signal }) {
         model,
         stream: false,
         format: 'json',
+        keep_alive: '30m', // keep the model warm across a session so repeat ops don't reload it
         options: { temperature: 0, num_ctx: 4096 },
         messages: [
           ...(system ? [{ role: 'system', content: system }] : []),
@@ -163,6 +180,7 @@ async function chatStream({ model, system, prompt, signal, onText, timeoutMs = 3
         model,
         stream: true,
         format: 'json',
+        keep_alive: '30m', // keep the model warm across a session so repeat ops don't reload it
         options: { temperature: 0, num_ctx: 4096 },
         messages: [
           ...(system ? [{ role: 'system', content: system }] : []),

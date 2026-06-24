@@ -108,7 +108,12 @@ function detectFinderSort(folder) {
       }
     } catch { /* no/unreadable parent .DS_Store */ }
 
-    return perFolder || globalDefault() || null;
+    const detected = perFolder || globalDefault() || null;
+    // Downloads' useful (and Finder's modern smart-default) order is newest-first.
+    // The on-disk .DS_Store often still says "name" from a stale list view, so prefer
+    // date there unless the user explicitly chose size or a date column themselves.
+    if (path.basename(folder) === 'Downloads' && (detected === 'name' || detected === null)) return 'date';
+    return detected;
   } catch {
     return null;
   }

@@ -30,4 +30,5 @@ contextBridge.exposeInMainWorld('api', {
   onProgress: (cb) => ipcRenderer.on('progress', (_e, msg) => cb(msg)),
   onOpenFolder: (cb) => ipcRenderer.on('open-folder', (_e, p) => cb(p)),
   onAiProgress: (cb) => ipcRenderer.on('ai-progress', (_e, payload) => cb(payload)),
+  onApplyProgress: (cb) => ipcRenderer.on('apply-progress', (_e, payload) => cb(payload)),
 });

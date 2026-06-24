@@ -43,6 +43,7 @@ const ACTIONS = ['group', 'delete', 'keep'];
 // True while an AI classification pass is in flight — disables Execute and
 // guards against late progress events re-showing the bar.
 let aiRunning = false;
+let applyRunning = false; // a plain-language request pass is in flight (shows the progress bar)
 
 // True after a scan with AI on, while the gate is up — we hold the file list
 // back (the rule-based plan would just be overwritten by AI). When AI runs, all
@@ -197,6 +198,13 @@ async function init() {
     showProgress(percent, `AI classifying… ${done}/${total}${cacheNote} · ${eta ? `~${eta} left` : 'estimating…'}`);
   });
 
+  // Determinate progress bar for a plain-language request (it does several model calls).
+  window.api.onApplyProgress(({ done, total }) => {
+    if (!applyRunning) return;
+    const pct = total ? Math.round((done / total) * 100) : 0;
+    showProgress(pct, total > 1 ? `Applying your request… (${done}/${total})` : 'Applying your request…');
+  });
+
   // Launched on a folder → scan it without waiting for a click.
   if (df.autoScan) { scanBtn.click(); return; }
   // Otherwise, restore the previous staged plan (with the user's edits) if any.
@@ -267,7 +275,7 @@ const progressLabel = $('progress-label');
 function showProgress(percent, label, indeterminate = false) {
   progressWrap.classList.remove('hidden');
   progressFill.classList.toggle('indeterminate', indeterminate);
-  progressFill.style.width = indeterminate ? '100%' : `${percent}%`;
+  progressFill.style.width = indeterminate ? '' : `${percent}%`; // CSS animates a sliding block when indeterminate
   progressLabel.textContent = label;
 }
 function hideProgress() {
@@ -828,7 +836,15 @@ previewEl.addEventListener('contextmenu', (e) => {
   ctx.style.top = `${e.clientY}px`;
   ctx.classList.remove('hidden');
 });
-window.addEventListener('click', (e) => { if (!ctx.contains(e.target)) closeCtx(); });
+// A click outside the context menu just dismisses it — swallow that click (capture
+// phase) so it doesn't also collapse a folder or clear the selection underneath.
+window.addEventListener('click', (e) => {
+  if (!ctx.classList.contains('hidden') && !ctx.contains(e.target)) {
+    closeCtx();
+    e.stopPropagation();
+    e.preventDefault();
+  }
+}, true);
 window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeCtx(); });
 
 // Finder-like keyboard shortcuts on the tree selection (Preview view).
@@ -976,6 +992,21 @@ function setView(v) {
 $('view-list').addEventListener('click', () => setView('list'));
 $('view-preview').addEventListener('click', () => setView('preview'));
 
+// Report of exactly what a plain-language request changed, so the user can see
+// what the model did (and, by omission, what it left alone).
+const changeReport = $('change-report');
+function showChangeReport(moves) {
+  const body = $('change-report-body');
+  body.innerHTML = moves.length
+    ? moves.map((m) => `<div class="cr-row">${escapeHtml(m)}</div>`).join('')
+    : '<div class="cr-empty">No changes.</div>';
+  changeReport.classList.remove('hidden');
+}
+const closeChangeReport = () => changeReport.classList.add('hidden');
+$('change-report-close').addEventListener('click', closeChangeReport);
+changeReport.addEventListener('click', (e) => { if (e.target === changeReport) closeChangeReport(); });
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !changeReport.classList.contains('hidden')) closeChangeReport(); });
+
 // Settings modal (Speed, Learn, Condense, Stop-Ollama, Clear cache, Forget learned
 // live here now — moved out of the main bar to declutter).
 const settingsOverlay = $('settings-overlay');
@@ -1085,25 +1116,41 @@ function estimateMinutes() {
   return `about ${fmtDuration(fileUnits(state.actions).units * per)}`;
 }
 
-// Live ETA from a SLIDING-WINDOW rate (recent throughput), so it tracks the
-// CURRENT speed and converges — instead of a cumulative average since the start,
-// which clings to early-fast progress and then only creeps upward when the run
-// slows mid-way (machine load, heat, Fast CPU contention). Cache hits are excluded
-// so their instant burst can't inflate the rate. Returns '' until there's signal.
-let etaSamples = [];  // recent {t, done} model-progress points
-let runStartedAt = 0; // wall-clock start of the current AI run (for calibration)
+// Live ETA tuned for STABILITY + OVERESTIMATION — a wildly swinging number is far
+// worse than a steady, slightly-high one. Design:
+//  - rate is the CUMULATIVE average since the first real classification (cache burst
+//    excluded), which smooths the per-batch bursts that made a short window spike to
+//    absurd values (e.g. 269 min when a 90s window caught a stall),
+//  - padded so we lean high,
+//  - SEEDED from the upfront estimate so it starts conservative, and
+//  - clamped: it drops freely toward the truth but can only creep UP gently — never a jump.
+const ETA_PAD = 1.3;
+let etaT0 = 0;            // time of first model progress (cache burst excluded)
+let etaD0 = 0;            // modelDone at that point
+let etaShown = Infinity;  // last displayed seconds (seeded at run start)
+let etaReseeded = false;  // discounted the cached portion yet?
+let runStartedAt = 0;
 function computeEta(done, total, hits) {
-  const modelDone = Math.max(0, done - (hits || 0));
-  if (modelDone < 1) return '';
+  // The seed counted ALL files; once we know how many were reused from cache,
+  // discount them — otherwise a 472-of-500-cached run still shows the full estimate.
+  if (!etaReseeded && total > 0 && etaShown !== Infinity) {
+    etaShown = Math.max(1, etaShown * (total - (hits || 0)) / total);
+    etaReseeded = true;
+  }
+  const md = Math.max(0, done - (hits || 0));
   const now = Date.now();
-  etaSamples.push({ t: now, done: modelDone });
-  const WINDOW_MS = 90000; const MIN_SAMPLES = 6; // ~90s window, but keep a few when slow
-  while (etaSamples.length > MIN_SAMPLES && now - etaSamples[0].t > WINDOW_MS) etaSamples.shift();
-  const first = etaSamples[0];
-  const dDone = modelDone - first.done;
-  const dT = (now - first.t) / 1000;
-  if (dDone < 2 || dT < 5) return ''; // not enough recent signal yet
-  return fmtDuration((total - done) / (dDone / dT));
+  if (md >= 1) {
+    if (!etaT0) { etaT0 = now; etaD0 = md; }
+    const dT = (now - etaT0) / 1000;
+    const dD = md - etaD0;
+    if (dT >= 8 && dD >= 3) {
+      const rate = dD / dT;                                  // cumulative — stable
+      const live = ((total - done) / rate) * ETA_PAD;        // padded — lean high
+      if (live < etaShown) etaShown = live;                  // drop freely toward the truth
+      else etaShown = Math.min(live, etaShown * 1.08 + 5);   // creep up gently — no spikes
+    }
+  }
+  return etaShown === Infinity ? '' : fmtDuration(etaShown);
 }
 
 scanBtn.addEventListener('click', async () => {
@@ -1157,7 +1204,10 @@ async function runAI() {
   const guidance = $('ai-guidance').value;
   const fileCount = state.actions.filter((a) => !a.isDir).length;
   aiRunning = true;
-  etaSamples = []; // fresh sliding window for this run's live ETA
+  // Seed the live ETA from the conservative upfront estimate so it starts HIGH and
+  // ratchets toward the truth — overestimate-and-converge, never wild swings.
+  etaT0 = 0; etaD0 = 0; etaReseeded = false;
+  etaShown = Math.max(1, fileUnits(state.actions).units * (learnedSecPerUnit || DEFAULT_SEC_PER_UNIT));
   runStartedAt = Date.now(); // for full-wall-clock calibration of the estimate
   state.selected.clear();    // a new plan invalidates any tree selection
   state.clipboard = [];
@@ -1216,12 +1266,17 @@ aiGate.addEventListener('click', (e) => { if (e.target === aiGate) dismissGate()
 window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !aiGate.classList.contains('hidden')) dismissGate(); });
 
 $('stop-ai').addEventListener('click', () => {
-  window.api.cancelAI();
+  window.api.cancelAI(); // aborts the in-flight model call (classify OR apply)
+  $('stop-ai').disabled = true;
+  hideProgress();
+  if (applyRunning) { // a plain-language request — leave the plan as it was
+    applyRunning = false;
+    setStatus('Stopped applying the request — plan unchanged.');
+    return;
+  }
   // Always tear down the UI, even if the run technically just finished — the bar
   // must never linger. aiRunning=false also guards out any late progress event.
   aiRunning = false;
-  $('stop-ai').disabled = true;
-  hideProgress();
   render(); // re-enable Execute for the already-classified files, drop "AI working" pill
   setStatus('Stopped — keeping what was already classified; the rest stay unstaged.');
 });
@@ -1247,23 +1302,40 @@ $('clear-learning').addEventListener('click', async () => {
   setStatus(`Forgot ${cleared} learned preference${cleared === 1 ? '' : 's'}.`);
 });
 
+// Enter makes a new line (so you can't fire a half-typed request); ⌘/Ctrl-Enter applies.
+$('prompt').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); $('apply-prompt').click(); }
+});
 $('apply-prompt').addEventListener('click', async () => {
   const prompt = $('prompt').value.trim();
   if (!prompt) return;
   if (!state.actions.length) { setStatus('Scan a folder first.'); return; }
   if (!aiAvailable) { setStatus('Ollama offline — natural-language requests need a local model.'); return; }
-  setStatus('Thinking…');
+  applyRunning = true;
+  $('stop-ai').disabled = false;
+  showProgress(0, 'Working on your request…', true); // covers model load + folder pass; batches make it determinate
+  setStatus('Working on your request…');
   try {
     const res = await window.api.applyPrompt({
       actions: state.actions, prompt, model: modelSelect.value,
     });
+    if (!applyRunning) return; // stopped mid-way — leave the plan untouched
     state.actions = res.actions;
     render();
     if (res.error) setStatus(res.error);
-    else if (res.changed) setStatus(`Applied request — ${res.changed} item(s) updated. Review before executing.`);
-    else setStatus('No items matched that request — try rephrasing (e.g. "move all PDFs into Finance", "delete all screenshots").');
+    else if (res.changed) {
+      const moves = res.summary || [];
+      const shown = moves.slice(0, 5).join('  ·  ');
+      const more = moves.length > 5 ? `  ·  +${moves.length - 5} more` : '';
+      setStatus(`Applied — ${res.changed} item(s): ${shown}${more}. Review before executing.`);
+      showChangeReport(moves); // full "what the model did" list
+    } else setStatus('No items matched that request — try rephrasing (e.g. "move all PDFs into Finance", "delete all screenshots").');
   } catch (err) {
     setStatus(`Request failed: ${err.message}`);
+  } finally {
+    applyRunning = false;
+    $('stop-ai').disabled = true;
+    hideProgress();
   }
 });
 
