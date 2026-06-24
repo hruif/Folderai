@@ -38,9 +38,12 @@ cp "$MODEL_SRC" "$STAGE/models/llama3.2-3b.gguf"
 # 2) Build the MAS target (the App Store variant of Electron). --no-asar so the native
 #    modules (node-llama-cpp, ocr-helper) are real files that can be signed.
 echo "› packaging (mas target)…"
+ICON=(); [ -f build/icon.icns ] && ICON=(--icon=build/icon.icns)
+[ ${#ICON[@]} -eq 0 ] && echo "  ⚠︎ no build/icon.icns — App Store requires an app icon; add one before submitting."
 npx --yes @electron/packager . Folderai \
   --platform=mas --arch=arm64 --out="$STAGE/out" --overwrite --no-asar \
   --app-bundle-id=com.xintechllc.folderai --app-version="$VERSION" --build-version="$VERSION" \
+  "${ICON[@]}" \
   --extra-resource="$STAGE/ocr-helper" --extra-resource="$STAGE/inprocess.flag" --extra-resource="$STAGE/models" \
   --ignore='^/dist' --ignore='^/dist-ship' --ignore='^/dist-inprocess' --ignore='^/scripts' --ignore='^/build' --ignore='^/\.git'
 APP="$STAGE/out/Folderai-mas-arm64/Folderai.app"

@@ -1,12 +1,13 @@
 {
   "name": "folderai",
   "productName": "Folderai",
-  "version": "0.1.0",
-  "description": "Privacy-first downloads-folder cleaner driven by a local Ollama model. Classifies, groups, and quarantines files with a staging-first review UI.",
+  "version": "1.0.0",
+  "description": "Private, on-device cleanup for messy folders. Groups files into your existing folders, flags duplicates and installers, and reviews everything before anything moves — nothing leaves your Mac.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "package": "electron-packager . --overwrite --out=dist --app-bundle-id=com.folderai.app --ignore=\"^/dist\" --ignore=\"^/finder\""
+    "build": "scripts/build.sh inprocess",
+    "build:mas": "scripts/sign-mas.sh"
   },
   "author": "",
   "license": "MIT",
