@@ -18,9 +18,9 @@ fi
 echo "Compiling OCR helper (Vision)…"
 swiftc -O native/ocr.swift -o "$STAGE/ocr-helper"
 
-ICON=(); [ -f build/icon.icns ] && ICON=(--icon=build/icon.icns) # used automatically once you add build/icon.icns
 IGN=(--ignore='^/dist($|/)' --ignore='^/dist-ship($|/)' --ignore='^/dist-inprocess($|/)' --ignore='^/\.git($|/)' --ignore='^/scripts($|/)')
-COMMON=(--platform=darwin --arch=arm64 --overwrite --no-asar --app-bundle-id=com.xintechllc.folderai --extra-resource="$STAGE/ocr-helper" "${ICON[@]}")
+COMMON=(--platform=darwin --arch=arm64 --overwrite --no-asar --app-bundle-id=com.xintechllc.folderai --extra-resource="$STAGE/ocr-helper")
+[ -f build/icon.icns ] && COMMON+=(--icon=build/icon.icns) # used automatically once you add build/icon.icns
 
 if [ "$MODE" = "inprocess" ]; then
   echo "inprocess" > "$STAGE/inprocess.flag"
