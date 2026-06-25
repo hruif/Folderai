@@ -66,8 +66,9 @@ falls back to copying a local Ollama blob, or `FA_MODEL_URL` download).
 ## App-sandbox specifics (App Store build)
 
 - Entitlements: `build/entitlements.mas.plist` (parent — app-sandbox, allow-jit, application-
-  groups, files.user-selected.read-write, files.bookmarks.app-scope, network.client). `__TEAMID__`
-  is substituted at sign time. Helpers use osx-sign's default child (app-sandbox + inherit).
+  groups, files.user-selected.read-write, files.bookmarks.app-scope, network.client) and
+  `build/entitlements.mas.inherit.plist` (nested code — app-sandbox, inherit, allow-jit).
+  `__TEAMID__` is substituted into the parent plist at sign time.
 - **`application-groups` is mandatory** — Electron's Mach-port rendezvous crashes at launch
   without it (found in the sandbox spike).
 - **Security-scoped bookmarks** (`src/scope.js`) persist folder access across launches; `main.js`
@@ -80,8 +81,10 @@ falls back to copying a local Ollama blob, or `FA_MODEL_URL` download).
 `scripts/sign-mas.sh` → `scripts/sign-app.mjs`:
 - Signs via **@electron/osx-sign's programmatic `sign()`** (NOT `signAsync`; the 2.x **CLI
   dropped `--entitlements`** and `npx @electron/osx-sign` can't resolve its bin). Our parent
-  entitlements go to the main app; `preAutoEntitlements` (default) auto-adds team-identifier +
-  application-groups from the provisioning profile.
+  entitlements go to the main app, our inherit entitlements go to nested code, and
+  `preAutoEntitlements` (default) auto-adds team-identifier + application-groups from the
+  provisioning profile to the top-level app. The signer verifies `allow-jit` on the main app
+  and Electron helpers after signing.
 - **Four Apple validation rejections, each fixed (iterate one at a time):**
   1. bundled `finder/*.workflow` had no bundle id → exclude `finder/` (and `docs/`) from the build.
   2. arm64-only rejected at min 10.15 → set `LSMinimumSystemVersion 12.0` (Apple-Silicon-only).

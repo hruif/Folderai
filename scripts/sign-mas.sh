@@ -88,10 +88,10 @@ sed "s/__TEAMID__/$APPLE_TEAM_ID/g" build/entitlements.mas.plist > "$STAGE/paren
 xattr -cr "$APP"
 
 # 5) Sign inside-out via @electron/osx-sign (programmatic API — its 2.x CLI dropped
-#    --entitlements). Main app → our parent.plist; Electron helpers + ocr-helper +
-#    node-llama-cpp .node → osx-sign's default child (app-sandbox + inherit).
+#    --entitlements). Main app → our parent.plist; nested code → our inherit plist.
+#    Both include allow-jit because Electron/V8 can crash before app code runs without it.
 echo "› signing… (build $BUILD)"
-node scripts/sign-app.mjs "$APP" "$STAGE/parent.plist"
+node scripts/sign-app.mjs "$APP" "$STAGE/parent.plist" build/entitlements.mas.inherit.plist
 
 # 6) Build the signed installer package for App Store Connect.
 PKG="$STAGE/Folderai-$VERSION.pkg"

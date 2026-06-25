@@ -39,9 +39,10 @@ This precompiles the OCR helper, bundles the gguf, builds the **mas** Electron t
 
 Signing uses the **programmatic API**, not the CLI: @electron/osx-sign 2.x dropped the
 `--entitlements` CLI flag (and `npx @electron/osx-sign` can't resolve its `electron-osx-sign`
-bin). `sign-app.mjs` passes our parent entitlements to the main app; `preAutoEntitlements`
-auto-adds the team-identifier + application-groups from the profile; helpers fall back to
-osx-sign's default child (app-sandbox + inherit).
+bin). `sign-app.mjs` passes our parent entitlements to the main app and our inherit
+entitlements to nested code; `preAutoEntitlements` auto-adds the team-identifier +
+application-groups from the profile to the top-level app. The script verifies
+`com.apple.security.cs.allow-jit` on the main app and Electron helper apps after signing.
 
 ## Upload
 
@@ -79,7 +80,10 @@ Then finish the listing in App Store Connect and submit for review.
   (attribution + bundled license/notice; see the in-app About/credits).
 - **Entitlements are deliberately minimal.** Do NOT add
   `com.apple.security.cs.allow-unsigned-executable-memory` — it's banned for App Store
-  apps. Only `allow-jit` is allowed (and present).
+  apps. Only `allow-jit` is allowed, and it must be present on the main app and Electron
+  helpers. If it is missing, Electron/V8 can crash before app code runs with
+  `Fatal process out of memory: Failed to reserve virtual memory for CodeRange`; launching
+  with `--js-flags=--jitless` is a useful confirmation, not a shippable fix.
 - **No auto-update / crash reporter** in MAS Electron builds (Apple handles updates).
 - **Known Electron risk:** an open macOS-26 V8/MAP_JIT MAS startup bug
   (electron/electron#51351) — test launch on your target OS early.
