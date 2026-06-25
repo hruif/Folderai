@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="1040" viewBox="0 0 1400 1040" role="img" aria-labelledby="title desc">
+  <title id="title">FolderAI review interface</title>
+  <desc id="desc">A staged cleanup table and folder tree inside the FolderAI Mac app.</desc>
+  <defs>
+    <linearGradient id="window" x1="0" y1="0" x2="1400" y2="1040" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#182326"/>
+      <stop offset="1" stop-color="#0a1113"/>
+    </linearGradient>
+    <linearGradient id="row" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#111c1f"/>
+      <stop offset="1" stop-color="#0b1214"/>
+    </linearGradient>
+    <filter id="shadow" x="-12%" y="-12%" width="124%" height="130%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="28" stdDeviation="34" flood-color="#000000" flood-opacity="0.36"/>
+    </filter>
+  </defs>
+  <rect width="1400" height="1040" fill="#080d0e"/>
+  <g filter="url(#shadow)" transform="translate(80 80)">
+    <rect width="1240" height="880" rx="26" fill="url(#window)" stroke="#2a383b" stroke-width="2"/>
+    <rect width="1240" height="76" rx="26" fill="#10191b"/>
+    <path d="M0 50 H1240" stroke="#273538" stroke-width="2"/>
+    <circle cx="34" cy="37" r="10" fill="#ff7568"/>
+    <circle cx="66" cy="37" r="10" fill="#f2c76f"/>
+    <circle cx="98" cy="37" r="10" fill="#8ed39d"/>
+    <text x="136" y="45" fill="#f5f7f4" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="25" font-weight="300">FolderAI</text>
+    <rect x="1030" y="22" width="150" height="34" rx="8" fill="#ff8b73"/>
+    <text x="1058" y="45" fill="#190b07" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="15" font-weight="600">Clean up</text>
+
+    <rect x="42" y="112" width="1156" height="72" rx="12" fill="#0b1214" stroke="#273538"/>
+    <text x="74" y="157" fill="#aab6b0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="20" font-weight="300">/Users/you/Downloads</text>
+    <rect x="938" y="129" width="102" height="38" rx="8" fill="#142428" stroke="#2a383b"/>
+    <text x="970" y="154" fill="#80f2ea" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="15" font-weight="500">Scan</text>
+    <rect x="1054" y="129" width="104" height="38" rx="8" fill="#173038" stroke="#2a383b"/>
+    <text x="1084" y="154" fill="#80f2ea" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="15" font-weight="500">AI</text>
+
+    <rect x="42" y="216" width="720" height="610" rx="16" fill="#0b1214" stroke="#273538"/>
+    <text x="74" y="262" fill="#f5f7f4" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="28" font-weight="260">Staged plan</text>
+    <text x="75" y="300" fill="#aab6b0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="16" font-weight="300">Nothing moves until you approve it.</text>
+    <g transform="translate(74 338)" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif">
+      <g>
+        <rect width="656" height="72" rx="10" fill="url(#row)" stroke="#243235"/>
+        <circle cx="34" cy="36" r="12" fill="#80f2ea"/>
+        <text x="62" y="32" fill="#f5f7f4" font-size="18" font-weight="320">Q2_receipts.zip</text>
+        <text x="62" y="55" fill="#aab6b0" font-size="13">Finance / Receipts</text>
+        <text x="512" y="42" fill="#80f2ea" font-size="14" font-weight="500">move</text>
+      </g>
+      <g transform="translate(0 88)">
+        <rect width="656" height="72" rx="10" fill="url(#row)" stroke="#243235"/>
+        <circle cx="34" cy="36" r="12" fill="#8ed39d"/>
+        <text x="62" y="32" fill="#f5f7f4" font-size="18" font-weight="320">launch-notes.md</text>
+        <text x="62" y="55" fill="#aab6b0" font-size="13">Projects / FolderAI</text>
+        <text x="512" y="42" fill="#8ed39d" font-size="14" font-weight="500">move</text>
+      </g>
+      <g transform="translate(0 176)">
+        <rect width="656" height="72" rx="10" fill="url(#row)" stroke="#243235"/>
+        <circle cx="34" cy="36" r="12" fill="#f0c96e"/>
+        <text x="62" y="32" fill="#f5f7f4" font-size="18" font-weight="320">Chrome.dmg</text>
+        <text x="62" y="55" fill="#aab6b0" font-size="13">Cleanup Quarantine</text>
+        <text x="512" y="42" fill="#f0c96e" font-size="14" font-weight="500">remove</text>
+      </g>
+      <g transform="translate(0 264)">
+        <rect width="656" height="72" rx="10" fill="url(#row)" stroke="#243235"/>
+        <circle cx="34" cy="36" r="12" fill="#ff8b73"/>
+        <text x="62" y="32" fill="#f5f7f4" font-size="18" font-weight="320">scan_0426.jpeg</text>
+        <text x="62" y="55" fill="#aab6b0" font-size="13">Documents / Notes</text>
+        <text x="512" y="42" fill="#ff8b73" font-size="14" font-weight="500">OCR</text>
+      </g>
+    </g>
+
+    <rect x="792" y="216" width="406" height="610" rx="16" fill="#0b1214" stroke="#273538"/>
+    <text x="824" y="262" fill="#f5f7f4" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="28" font-weight="260">Preview tree</text>
+    <text x="824" y="300" fill="#aab6b0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="16" font-weight="300">Drag, rename, or make a new folder.</text>
+    <g font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="18" font-weight="300" fill="#aab6b0">
+      <text x="840" y="366">v Documents</text>
+      <text x="878" y="414">v Finance</text>
+      <text x="916" y="462">Receipts</text>
+      <text x="878" y="520">v Projects</text>
+      <text x="916" y="568">FolderAI</text>
+      <text x="840" y="636">v Cleanup Quarantine</text>
+      <text x="878" y="684">Installers</text>
+    </g>
+  </g>
+</svg>

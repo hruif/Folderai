@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://xintechllc.com/FolderAI/sitemap.xml

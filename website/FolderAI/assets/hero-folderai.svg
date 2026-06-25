@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2400" height="1500" viewBox="0 0 2400 1500" role="img" aria-labelledby="title desc">
+  <title id="title">FolderAI app window reviewing a cleanup plan</title>
+  <desc id="desc">The real FolderAI interface with a staged cleanup tree on a dark desktop-style background.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="2400" y2="1500" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#080d0e"/>
+      <stop offset="0.5" stop-color="#0f1218"/>
+      <stop offset="1" stop-color="#050707"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1740 690) rotate(38) scale(860 520)">
+      <stop offset="0" stop-color="#4f8cff" stop-opacity="0.32"/>
+      <stop offset="0.48" stop-color="#80f2ea" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#80f2ea" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shotShadow" x="-10%" y="-12%" width="120%" height="130%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="36" stdDeviation="42" flood-color="#000000" flood-opacity="0.52"/>
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000000" flood-opacity="0.28"/>
+    </filter>
+    <clipPath id="shotClip">
+      <rect x="805" y="196" width="1510" height="1014" rx="34"/>
+    </clipPath>
+  </defs>
+
+  <rect width="2400" height="1500" fill="url(#bg)"/>
+  <rect width="2400" height="1500" fill="url(#glow)"/>
+
+  <g opacity="0.18">
+    <path d="M880 180 L2240 1180" stroke="#80f2ea" stroke-width="1.4"/>
+    <path d="M1030 120 L2390 1120" stroke="#80f2ea" stroke-width="1.1"/>
+    <path d="M760 390 L2120 1390" stroke="#80f2ea" stroke-width="1"/>
+    <path d="M0 1010 C420 925 780 930 1150 845 C1585 745 1970 755 2400 820" fill="none" stroke="#ffffff" stroke-width="1" opacity="0.2"/>
+    <path d="M0 1220 C510 1110 825 1165 1190 1070 C1590 965 1985 985 2400 1060" fill="none" stroke="#ffffff" stroke-width="1" opacity="0.13"/>
+  </g>
+
+  <g filter="url(#shotShadow)">
+    <image href="review-screenshot.png" x="805" y="196" width="1510" height="1014" preserveAspectRatio="xMidYMid slice" clip-path="url(#shotClip)"/>
+    <rect x="805" y="196" width="1510" height="1014" rx="34" fill="none" stroke="#2a3240" stroke-width="3"/>
+    <rect x="805" y="196" width="1510" height="1014" rx="34" fill="rgba(8,13,14,0.16)"/>
+  </g>
+</svg>
