@@ -22,7 +22,7 @@ review, plus draft metadata so you can fill App Store Connect quickly.
 - [ ] **App icon** — a 1024×1024 PNG, converted to `build/icon.icns` (the build picks it
       up automatically). *Required — Apple rejects the default Electron icon.*
 - [ ] **Screenshots** — Mac, one of: 1280×800, 1440×900, 2560×1600, or 2880×1800. 1–10 images.
-- [ ] **Privacy policy URL** — host `PRIVACY.md` (e.g. a GitHub Pages page) and fill the date/email.
+- [ ] **Privacy policy URL** — enable GitHub Pages from `main` / `docs` and use `https://hruif.github.io/Folderai/privacy.html`.
 - [ ] **Support URL** (required) and optional Marketing URL.
 - [ ] App Store Connect app record for `com.xintechllc.folderai` (you registered the ID + App Group).
 - [ ] Certs + Mac App Store provisioning profile (you have these — see MAS.md).

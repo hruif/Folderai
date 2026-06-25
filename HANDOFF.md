@@ -25,8 +25,9 @@ ever deleted** — removals go to a Quarantine folder with one-click Undo.
    `mas` (warns `…with extension ".icon"`). Unsolved; required for store review.
 2. **Store metadata + screenshots** — drafts in `APPSTORE.md`; Mac screenshots must be exactly
    1280×800 / 1440×900 / 2560×1600 / 2880×1800.
-3. **Privacy-policy URL** — `docs/privacy.html` is ready; enable GitHub Pages (Settings → Pages
-   → main `/docs`) to publish `https://hruif.github.io/Folderai/privacy.html`.
+3. **Website / privacy-policy URL** — `docs/` is the project-site source; enable GitHub Pages
+   (Settings → Pages → main `/docs`) to publish `https://hruif.github.io/Folderai/` and
+   `https://hruif.github.io/Folderai/privacy.html`.
 
 ---
 
@@ -111,7 +112,8 @@ falls back to copying a local Ollama blob, or `FA_MODEL_URL` download).
 | `scripts/build.sh` | `[inprocess]` build → `dist-inprocess/Folderai.app` (dev/test; auto-uses `build/icon.icns`) |
 | `scripts/sign-mas.sh` + `scripts/sign-app.mjs` | MAS build + sign + signed `.pkg` |
 | `finder/` | legacy Finder Quick Action (`.workflow`) — **excluded from the MAS build** |
-| `docs/` | GitHub Pages: `index.html` (landing/support) + `privacy.html` (privacy policy) |
+| `docs/` | GitHub Pages project site: landing, support, privacy, real app screenshots |
+| `scripts/capture-folderai-website-shots.js` | Regenerates `docs/assets/*screenshot.png` from the Electron renderer and rebuilds the hero image |
 | `APPSTORE.md` / `MAS.md` / `PRIVACY.md` | submission playbook / build guide / policy |
 
 ## Recent UI/features (this session)

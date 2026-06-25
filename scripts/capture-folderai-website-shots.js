@@ -2,10 +2,11 @@
 
 const fs = require('fs');
 const path = require('path');
+const childProcess = require('child_process');
 const { app, BrowserWindow, ipcMain } = require('electron');
 
 const repoRoot = path.resolve(__dirname, '..');
-const outDir = path.join(repoRoot, 'website', 'FolderAI', 'assets');
+const outDir = path.join(repoRoot, 'docs', 'assets');
 const home = '/Users/you';
 const folder = `${home}/Downloads`;
 
@@ -31,7 +32,7 @@ const actions = [
   action('a1', 'Invoice April 2026.pdf', '~/Documents/Finance/Invoices', 'Invoice content and vendor terms found in the PDF.', { size: 842000 }),
   action('a2', 'IMG_4921.png', 'Screenshots', 'Screenshot-style image with visible text.', { size: 1800000 }),
   action('a3', 'Chrome Installer.dmg', 'Junk', 'Installer disk image; safe to quarantine after install.', { action: 'delete', size: 95000000 }),
-  action('a4', 'Launch notes draft.md', 'Projects/FolderAI', 'Project notes and release checklist language.', { size: 42000, rename: 'folderai-launch-notes.md' }),
+  action('a4', 'Launch notes draft.md', 'Projects/Folderai', 'Project notes and release checklist language.', { size: 42000, rename: 'folderai-launch-notes.md' }),
   action('a5', 'receipt-coffee.jpeg', '~/Documents/Finance/Receipts', 'OCR found receipt text and a transaction total.', { size: 390000 }),
   action('a6', 'Budget copy.xlsx', '~/Documents/Finance', 'Duplicate of Budget.xlsx.', { action: 'delete', size: 620000 }),
   action('a7', 'Resume 2024.docx', '~/Documents/Career', 'Resume document.', { size: 118000 }),
@@ -117,6 +118,16 @@ async function capture(win, filename) {
   fs.writeFileSync(path.join(outDir, filename), image.toPNG());
 }
 
+function renderHero() {
+  const binary = process.env.RSVG_CONVERT || (fs.existsSync('/opt/homebrew/bin/rsvg-convert') ? '/opt/homebrew/bin/rsvg-convert' : 'rsvg-convert');
+  childProcess.execFileSync(binary, [
+    '-w', '2400',
+    '-h', '1500',
+    path.join(outDir, 'hero-folderai.svg'),
+    '-o', path.join(outDir, 'hero-folderai.png'),
+  ], { stdio: 'inherit' });
+}
+
 app.whenReady().then(async () => {
   installMocks();
 
@@ -135,7 +146,17 @@ app.whenReady().then(async () => {
   await win.loadFile(path.join(repoRoot, 'renderer', 'index.html'));
   await wait(900);
   await win.webContents.executeJavaScript(`
-    document.getElementById('adv-toggle')?.click();
+    document.getElementById('scan')?.click();
+  `);
+  await wait(800);
+  await win.webContents.executeJavaScript(`
+    document.getElementById('ai-skip')?.click();
+  `);
+  await wait(800);
+  await win.webContents.executeJavaScript(`
+    if (document.getElementById('adv-toggle') && document.getElementById('adv-toggle').textContent.trim().startsWith('▸')) {
+      document.getElementById('adv-toggle').click();
+    }
     document.getElementById('status').textContent = 'Restored your previous plan — 10 files.';
   `);
   await wait(500);
@@ -149,6 +170,8 @@ app.whenReady().then(async () => {
   `);
   await wait(300);
   await capture(win, 'refine-screenshot.png');
+
+  renderHero();
 
   win.close();
   app.quit();

@@ -34,6 +34,17 @@ npm install
 npm start
 ```
 
+## Website
+
+The GitHub Pages project site lives in `docs/`. If Pages is enabled for
+`main` / `docs`, it publishes as `https://hruif.github.io/Folderai/`.
+
+To refresh the site screenshots from the actual Electron renderer:
+
+```bash
+PATH=/opt/homebrew/bin:$PATH ./node_modules/.bin/electron scripts/capture-folderai-website-shots.js
+```
+
 ## How it works
 
 | Layer | File |
