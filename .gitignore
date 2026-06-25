@@ -4,3 +4,4 @@ dist-ship/
 dist-inprocess/
 .DS_Store
 *.log
+.release-stats/

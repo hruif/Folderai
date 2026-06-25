@@ -27,12 +27,32 @@ echo "› compiling OCR helper…"
 swiftc -O native/ocr.swift -o "$STAGE/ocr-helper"
 echo "inprocess" > "$STAGE/inprocess.flag"
 
+resolve_model_src() {
+  if [ -n "${FA_GGUF_SRC:-}" ]; then
+    echo "$FA_GGUF_SRC"
+    return
+  fi
+
+  local manifest="$HOME/.ollama/models/manifests/registry.ollama.ai/library/llama3.2/3b"
+  if [ -f "$manifest" ]; then
+    local digest
+    digest="$(node -e "const fs=require('fs'); const m=JSON.parse(fs.readFileSync(process.argv[1], 'utf8')); const layer=m.layers.find((l)=>l.mediaType==='application/vnd.ollama.image.model'); if (!layer) process.exit(1); process.stdout.write(layer.digest.replace(/^sha256:/, ''));" "$manifest")"
+    local blob="$HOME/.ollama/models/blobs/sha256-$digest"
+    if [ -f "$blob" ]; then
+      echo "$blob"
+      return
+    fi
+  fi
+
+  ls -S "$HOME"/.ollama/models/blobs/sha256-* 2>/dev/null | head -1
+}
+
 # 1b) Bundle the model so the sandboxed app works offline with no download (Apple hosts
 #     the binary). The sandbox can't reach ~/.ollama, so the model must ship inside.
 #     Source: the local Ollama gguf blob (set FA_GGUF_SRC to override with another gguf).
 echo "› bundling model…"
 mkdir -p "$STAGE/models"
-MODEL_SRC="${FA_GGUF_SRC:-$(ls -S "$HOME"/.ollama/models/blobs/sha256-* 2>/dev/null | head -1)}"
+MODEL_SRC="$(resolve_model_src)"
 [ -n "$MODEL_SRC" ] && [ -f "$MODEL_SRC" ] || { echo "No gguf to bundle (set FA_GGUF_SRC=/path/to/model.gguf)"; exit 1; }
 cp "$MODEL_SRC" "$STAGE/models/llama3.2-3b.gguf"
 
