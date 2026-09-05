@@ -54,10 +54,14 @@ falls back to copying a local Ollama blob, or `FA_MODEL_URL` download).
 2. **Rule plan** (`src/classifier.js` + `planByRules`) — instant; flags only obvious junk/
    installers for removal, everything else **keep**. Rules never impose type-buckets.
 3. **AI refinement** (`refineWithModel`) — gated behind a modal with a time estimate + optional
-   guidance. Classifies loose files only, batched + streamed (revealed one-by-one). Routes files
-   into the user's **existing** folders. `destForGroup` (`src/planner.js`) is **code-aware**:
-   `444_HW.pdf` → existing `cse444` or `CSE/444` (matches 3-digit + `cseNNN` codes against dest
-   leaf names AND subfolders, ignoring bare years).
+   guidance. Classifies loose files only, batched + streamed (revealed one-by-one). The model tags
+   semantic facets (`type`, `subject`, `domain`, `entity`, `year`); deterministic routing then
+   prefers existing specific folders before broad presets (`Taxes`, `Career`, `Finance`, etc.).
+   `destForGroup` (`src/planner.js`) remains **code-aware**: `444_HW.pdf` → existing `cse444` or
+   `CSE/444` (matches 3-digit + `cseNNN` codes against dest leaf names AND subfolders, ignoring
+   bare years). After AI/consolidation, `avoidSingletonNewFolders` keeps auto-created new folders
+   from being populated by only one file; singleton leaf folders collapse up to a shared new parent
+   when that parent has 2+ files. Existing folders and explicit user/manual moves are exempt.
 4. **Plain-word prompts** (`applyPrompt`) — deterministic rule pass → fuzzy model pass; a
    delete-safety rail means an AI "delete" is only honored if the rules already flagged it.
 5. **Execute** (`src/executor.js`) — moves within granted folders; **removals → Quarantine**
@@ -108,7 +112,7 @@ falls back to copying a local Ollama blob, or `FA_MODEL_URL` download).
 | `src/model.js` | model delivery — bundled gguf preferred, else copy Ollama blob / `FA_MODEL_URL` |
 | `src/scope.js` | granted + protected folders, security-scoped bookmarks (userData/scope.json) |
 | `src/scanner.js` | top-level scan + `gatherDestinations` |
-| `src/planner.js` | rules, `classifyWithModel`, `destForGroup` (code-aware), `applyPrompt` |
+| `src/planner.js` | rules, facet router, `destForGroup` (code-aware), singleton-folder guard, `applyPrompt` |
 | `src/executor.js` | apply actions; quarantine-only; protected-path guards |
 | `src/ocr.js` | bundled Vision `ocr-helper` (no runtime swiftc) |
 | `renderer/` | UI — staging table, AI gate, settings, progress + work-weighted ETA |

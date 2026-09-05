@@ -3,9 +3,9 @@
 const fs = require('fs');
 
 // Learns from the user's corrections. When the user overrides where a file goes,
-// we record a GENERAL rule keyed on the file's objective tags (type or subject) —
-// not the individual file — and apply it on the next run. Sits on top of the
-// general engine; never hard-coded.
+// we record a GENERAL rule keyed on the file's objective semantic facets — not
+// the individual file — and apply it on the next run. Sits on top of the general
+// engine; never hard-coded.
 
 const norm = (s) => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
 
@@ -23,10 +23,17 @@ function clearLearning(store) { store.data = {}; saveLearning(store); }
 // correction generalizes the same way the placement did.
 function keyFor(tags) {
   if (!tags) return null;
-  const type = norm(tags.type), subject = norm(tags.subject), basis = tags.basis;
+  const type = norm(tags.type), subject = norm(tags.subject), domain = norm(tags.domain);
+  const entity = norm(tags.entity), year = norm(tags.year), basis = tags.basis;
   if ((basis === 'type' || basis === 'bucket') && type) return `type:${type}`;
+  if ((basis === 'domain' || basis === 'domainYear') && domain && year) return `domain:${domain}:${year}`;
+  if ((basis === 'domain' || basis === 'domainYear') && domain) return `domain:${domain}`;
+  if ((basis === 'entity' || basis === 'entityYear') && entity && year) return `entity:${entity}:${year}`;
+  if ((basis === 'entity' || basis === 'entityYear') && entity) return `entity:${entity}`;
   if ((basis === 'subject' || basis === 'series') && subject) return `subject:${subject}`;
   if (subject) return `subject:${subject}`;
+  if (entity) return year ? `entity:${entity}:${year}` : `entity:${entity}`;
+  if (domain) return year ? `domain:${domain}:${year}` : `domain:${domain}`;
   if (type) return `type:${type}`;
   return null;
 }
@@ -56,8 +63,13 @@ function recordCorrections(store, actions) {
 // over type rules.
 function lookup(store, tags) {
   if (!store || !tags) return null;
-  const type = norm(tags.type), subject = norm(tags.subject);
+  const type = norm(tags.type), subject = norm(tags.subject), domain = norm(tags.domain);
+  const entity = norm(tags.entity), year = norm(tags.year);
   if (subject && store.data[`subject:${subject}`]) return store.data[`subject:${subject}`];
+  if (entity && year && store.data[`entity:${entity}:${year}`]) return store.data[`entity:${entity}:${year}`];
+  if (entity && store.data[`entity:${entity}`]) return store.data[`entity:${entity}`];
+  if (domain && year && store.data[`domain:${domain}:${year}`]) return store.data[`domain:${domain}:${year}`];
+  if (domain && store.data[`domain:${domain}`]) return store.data[`domain:${domain}`];
   if (type && store.data[`type:${type}`]) return store.data[`type:${type}`];
   return null;
 }

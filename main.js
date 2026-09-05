@@ -71,7 +71,7 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 const { scanFolder, gatherDestinations, labelFor, listSubfolders } = require('./src/scanner');
-const { planByRules, refineWithModel, applyPrompt, applyRuleRequest, consolidateFolders } = require('./src/planner');
+const { planByRules, refineWithModel, applyPrompt, applyRuleRequest, consolidateFolders, avoidSingletonNewFolders } = require('./src/planner');
 const { execute, undo } = require('./src/executor');
 const { findDuplicates } = require('./src/dedup');
 const { loadCache, saveCache, pruneCache, clearCache, cacheKey } = require('./src/cache');
@@ -459,6 +459,7 @@ ipcMain.handle('classify-ai', async (_e, { actions, model, guidance, ignoreCache
     concurrency,
     !!rename,
     getSettings().useLearning !== false ? getLearning() : null,
+    getSettings().summarizeContent !== false,
   );
   saveCache(c); // persist newly classified results
 
@@ -496,6 +497,10 @@ ipcMain.handle('classify-ai', async (_e, { actions, model, guidance, ignoreCache
   ensureScope();
   for (const a of refined) {
     if (a.protected || scope.isProtected(a.path)) { a.action = 'keep'; a.category = 'Other'; a.destPath = null; a.rename = null; a.protected = true; a.reason = 'Protected — never touched'; }
+  }
+  const singletonGuard = avoidSingletonNewFolders(refined, lastScan.destinations, lastScan.folder);
+  if (singletonGuard.changed && win && !win.isDestroyed()) {
+    win.webContents.send('ai-progress', { done: classified, total: classified, hits, percent: 100, actions: refined });
   }
   return { actions: refined, cancelled: aiCancelled, hits, classified };
 });

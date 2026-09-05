@@ -14,6 +14,10 @@ const DEFAULTS = {
   useLearning: true,
   // Second pass that nests related proposed folders under shared parents.
   condenseFolders: true,
+  // Distill long document excerpts into a clean summary before classifying them, so
+  // the model judges by subject rather than boilerplate. Costs ~1 extra model call
+  // per batch (only when a batch has long document excerpts).
+  summarizeContent: true,
   // Row density in the list/tree: 'comfortable' (default) or 'compact'.
   density: 'comfortable',
 };

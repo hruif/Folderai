@@ -12,14 +12,18 @@ const ollama = require('./inference'); // swappable: system Ollama (dev) or in-p
 
 const DOC_KINDS = new Set(['homework', 'assignment', 'essay', 'paper', 'notes', 'reading', 'document', 'report']);
 const OMIT_RETRIES = 2; // re-ask the model for files it skipped in a batch before keeping them as-is
+// Summarize-then-classify: distill long document excerpts before tagging so the tagger
+// judges by subject, not by boilerplate/headers/OCR noise.
+const SUMMARIZE_MIN_CHARS = 280; // only excerpts at least this long are worth a summary call
+const MAX_SUMMARY_CHARS = 200;
 
 
 // --- Tag-based grouping (stage 1: tag each file; stage 2: cluster + place) ---
 
-// Ask the model to OBJECTIVELY identify what each file IS — its type and the
-// subject it's about. The grouping decision (which folder) is then made by
-// general, deterministic rules, not by the model. Excerpts let it judge by
-// content. This is the objective half; folder choice is the conventions half.
+// Ask the model to OBJECTIVELY identify what each file IS and the semantic
+// facets around it. The grouping decision (which folder) is then made by
+// deterministic rules, not by the model. Excerpts let it judge by content.
+// This is the objective half; folder choice is the conventions half.
 function buildTagPrompt(items, guidance = '', content = new Map(), wantName = false) {
   const system =
     'You IDENTIFY what each downloaded file IS — objectively. You do not decide where it goes. ' +
@@ -33,14 +37,19 @@ function buildTagPrompt(items, guidance = '', content = new Map(), wantName = fa
   });
   const g = guidance.trim() ? `User guidance — take into account: "${guidance.trim()}"\n\n` : '';
   const prompt = g +
-    'For each item output two OBJECTIVE facts:\n' +
+    'For each item output OBJECTIVE facts:\n' +
     '  "type": what kind of document/file it is — be specific and factual. Examples: resume, ' +
     'cover letter, invoice, receipt, bank statement, tax document, transcript, contract, ' +
     'certificate, ticket, research paper, thesis, homework, assignment, essay, lecture notes, ' +
     'reading, exam, slides, syllabus, screenshot, photo, music, video, installer, archive, note.\n' +
-    '  "subject": the course / topic / entity it is ABOUT — e.g. "CSE 446", "French Revolution", ' +
-    '"Acme Corp". The BROAD subject only (no dates/quarters/assignment numbers). Empty "" if it ' +
-    'has no specific subject (a generic resume, a vague note, a random screenshot).\n' +
+    '  "subject": the course / topic / project / matter it is ABOUT — e.g. "CSE 446", ' +
+    '"French Revolution", "Kitchen Remodel". The BROAD subject only (no dates/quarters/' +
+    'assignment numbers). Empty "" if it has no specific subject.\n' +
+    '  "domain": a broad life area when clear: taxes, career, finance, school, travel, ' +
+    'health, legal, home, insurance, identity, research, software, media. Empty "" if unclear.\n' +
+    '  "entity": a named person/company/agency/school/vendor connected to the file, e.g. ' +
+    '"IRS", "Acme Corp", "United Airlines", "University of Washington". Empty "" if none.\n' +
+    '  "year": a 4-digit year if clearly part of the document period/filing/trip/course, else "".\n' +
     (wantName
       ? '  "name": a clean, descriptive filename (NO extension) from the contents — e.g. ' +
         '"Acme Invoice March 2024", "CSE 446 Homework 3", "Frost Close Reading". Concise, no path.\n'
@@ -58,7 +67,7 @@ function buildTagPrompt(items, guidance = '', content = new Map(), wantName = fa
     'a document/receipt/screenshot/text, type it as that document. Otherwise it is a personal ' +
     'photo — type "photo" with an EMPTY subject (it should be kept, not split into folders per ' +
     'object or animal).\n' +
-    `Return JSON: {"items":[{"id":"...","type":"...","subject":"..."${wantName ? ',"name":"..."' : ''}}]}\n\n` +
+    `Return JSON: {"items":[{"id":"...","type":"...","subject":"...","domain":"...","entity":"...","year":"..."${wantName ? ',"name":"..."' : ''}}]}\n\n` +
     'Items:\n' + JSON.stringify(list);
   return { system, prompt };
 }
@@ -69,6 +78,9 @@ function mapTagRow(row) {
     id: String(row.id),
     type: String(row.type || '').trim(),
     subject: String(row.subject || '').trim(),
+    domain: String(row.domain || '').trim(),
+    entity: String(row.entity || '').trim(),
+    year: String(row.year || '').match(/\b(19|20)\d{2}\b/) ? String(row.year || '').match(/\b(19|20)\d{2}\b/)[0] : '',
     name: String(row.name || '').trim(),
     reason: row.reason || '',
   };
@@ -172,7 +184,7 @@ const TYPE_FOLDERS = [
   ['invoice', 'Invoices'], ['receipt', 'Receipts'],
   ['bank statement', 'Statements'], ['statement', 'Statements'], ['payslip', 'Statements'], ['pay stub', 'Statements'],
   ['utility bill', 'Bills'], ['bill', 'Bills'],
-  ['tax', 'Tax'],
+  ['tax', 'Taxes'],
   ['contract', 'Contracts'], ['agreement', 'Contracts'], ['lease', 'Contracts'], ['nda', 'Contracts'],
   ['boarding pass', 'Tickets'], ['ticket', 'Tickets'], ['itinerary', 'Travel'],
   ['certificate', 'Certificates'], ['diploma', 'Certificates'],
@@ -204,18 +216,88 @@ function subjectTypeBucket(type) {
   return null;
 }
 
+// Broad preset vocabulary. These are semantic hints and fallbacks, not first
+// choice destinations: existing specific folders still win before these labels.
+const DOMAIN_FOLDERS = [
+  ['tax', 'Taxes'], ['taxes', 'Taxes'], ['irs', 'Taxes'], ['filing', 'Taxes'],
+  ['career', 'Career'], ['job', 'Career'], ['employment', 'Career'], ['hiring', 'Career'],
+  ['finance', 'Finance'], ['financial', 'Finance'], ['banking', 'Finance'], ['money', 'Finance'],
+  ['school', 'School'], ['education', 'School'], ['course', 'School'], ['class', 'School'],
+  ['travel', 'Travel'], ['trip', 'Travel'], ['flight', 'Travel'],
+  ['health', 'Health'], ['medical', 'Health'], ['doctor', 'Health'],
+  ['legal', 'Legal'], ['law', 'Legal'],
+  ['home', 'Home'], ['house', 'Home'], ['rent', 'Home'], ['utilities', 'Home'],
+  ['insurance', 'Insurance'],
+  ['identity', 'IDs'], ['id', 'IDs'],
+  ['research', 'Research Papers'],
+  ['software', 'Software'],
+  ['media', 'Media'],
+];
+function domainToFolder(domain) {
+  const n = String(domain || '').toLowerCase();
+  for (const [kw, f] of DOMAIN_FOLDERS) if (wordRe(kw).test(n)) return f;
+  return null;
+}
+
 // Media / disposable types that have no natural subject grouping.
 const MEDIA_RE = /\b(screenshot|photo|image|picture|wallpaper|meme|video|movie|clip|music|audio|song|podcast|installer|application|archive|backup|icon|font|gif|sticker)\b/;
 const isMedia = (type) => MEDIA_RE.test(String(type || '').toLowerCase());
 
 const normGroup = (g) => String(g || '').trim().replace(/\s+/g, ' ').toLowerCase();
-const tokenSet = (s) => new Set(String(s).toLowerCase().match(/[a-z0-9]+/g) || []);
+const TOKEN_ALIASES = new Map([
+  ['taxes', 'tax'], ['ids', 'id'], ['resumes', 'resume'], ['invoices', 'invoice'],
+  ['receipts', 'receipt'], ['statements', 'statement'], ['bills', 'bill'],
+  ['contracts', 'contract'], ['certificates', 'certificate'], ['tickets', 'ticket'],
+  ['manuals', 'manual'], ['warranties', 'warranty'], ['transcripts', 'transcript'],
+  ['readings', 'reading'], ['notes', 'note'], ['slides', 'slide'], ['exams', 'exam'],
+  ['essays', 'essay'], ['reports', 'report'], ['papers', 'paper'], ['photos', 'photo'],
+  ['images', 'image'], ['pictures', 'picture'], ['screenshots', 'screenshot'],
+]);
+const normToken = (t) => TOKEN_ALIASES.get(t) || t;
+const tokenSet = (s) => new Set((String(s).toLowerCase().match(/[a-z0-9]+/g) || []).map(normToken));
 function jaccard(a, b) {
   const A = tokenSet(a), B = tokenSet(b);
   if (!A.size || !B.size) return 0;
   let inter = 0;
   for (const x of A) if (B.has(x)) inter += 1;
   return inter / (A.size + B.size - inter);
+}
+
+// Character-level similarity (normalized Levenshtein) over the alnum skeleton of two
+// labels. Catches near-identical names that TOKEN overlap misses — plurals/typos/
+// spacing the hand-kept alias map doesn't cover ("Finance"↔"Finances", "Machine
+// Learning"↔"MachineLearning", "Reciepts"↔"Receipts"). Borrowed from ai-file-sorter's
+// taxonomy de-duplication (it snaps the model's label to an existing one at sim≥0.85).
+function editSim(a, b) {
+  const x = String(a || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  const y = String(b || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  if (!x || !y) return 0;
+  if (x === y) return 1;
+  const m = x.length, n = y.length;
+  let prev = new Array(n + 1);
+  let curr = new Array(n + 1);
+  for (let j = 0; j <= n; j += 1) prev[j] = j;
+  for (let i = 1; i <= m; i += 1) {
+    curr[0] = i;
+    for (let j = 1; j <= n; j += 1) {
+      const cost = x[i - 1] === y[j - 1] ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+    }
+    const tmp = prev; prev = curr; curr = tmp;
+  }
+  return 1 - prev[n] / Math.max(m, n);
+}
+// editSim, but only when both labels are long enough that a high score is meaningful
+// — so a one-char diff on a short word ("Taxes"↔"Faxes") can't masquerade as a folder
+// match. Returns 0 below the gates; otherwise the raw similarity.
+const EDIT_SIM_MIN = 0.86;
+const EDIT_SIM_MIN_LEN = 5;
+function gatedEditSim(a, b) {
+  const la = String(a || '').replace(/[^a-z0-9]/gi, '').length;
+  const lb = String(b || '').replace(/[^a-z0-9]/gi, '').length;
+  if (Math.min(la, lb) < EDIT_SIM_MIN_LEN) return 0;
+  const s = editSim(a, b);
+  return s >= EDIT_SIM_MIN ? s : 0;
 }
 
 // Decide ONE destination for a whole cluster (a subject group). Route to an
@@ -238,30 +320,87 @@ function sharesCode(codes, name) {
   return false;
 }
 
-function destForGroup(group, kind, dests) {
-  const clean = group.replace(/[\\/:*?"<>|]/g, '').trim().slice(0, 60) || 'Misc';
+const GENERIC_MATCH_TOKENS = new Set(['new', 'misc', 'other', 'general', 'document', 'documents',
+  'file', 'files', 'folder', 'folders', 'personal', 'stuff', 'items', 'item']);
+function subsetScore(group, name) {
+  const A = tokenSet(group), B = tokenSet(name);
+  if (!A.size || !B.size) return 0;
+  let contained = true;
+  for (const x of A) if (!B.has(x)) contained = false;
+  if (!contained) return 0;
+  const meaningful = [...A].filter((x) => !GENERIC_MATCH_TOKENS.has(x));
+  if (!meaningful.length) return 0;
+  return A.size === B.size ? 1 : 0.72;
+}
+
+function folderMatchScore(group, name) {
+  return Math.max(jaccard(group, name), subsetScore(group, name), gatedEditSim(group, name));
+}
+
+function cleanGroupLabel(group) {
+  return String(group || '').replace(/[\\/:*?"<>|]/g, '').trim().slice(0, 60) || 'Misc';
+}
+
+// Strip the prose a model sometimes wraps around a label so "the Taxes folder" /
+// "Category: CSE 446" collapse to the bare subject. Conservative: removes leading
+// articles, a structural "Category:/Folder:" prefix, a trailing "folder/directory"
+// word, and illegal path chars — never trailing content words like "Documents"/
+// "Papers" (those are real folder names). Mirrors ai-file-sorter's label cleanup,
+// adapted to our structured tags. May return '' (caller drops empty labels).
+const LABEL_LEAD = /^(the|a|an|my|our|your)\s+/i;
+const LABEL_TRAIL = /\s+(folder|directory|subfolder)$/i;
+function sanitizeLabel(raw) {
+  let s = String(raw || '').replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim();
+  s = s.replace(/^(sub-?category|category|folder|topic|subject)\s*[:\-]\s*/i, '').trim();
+  let prev;
+  do { prev = s; s = s.replace(LABEL_LEAD, '').replace(LABEL_TRAIL, '').trim(); } while (s !== prev);
+  return s;
+}
+
+function findExistingDestForGroup(group, dests, minScore = 0.6) {
   const gcodes = codesOf(group);
   let best = null, bestScore = 0, bestSub = null;
-  for (const d of dests) {
+  for (const d of dests || []) {
     const name = d.label.split('/').pop();
-    let score = jaccard(group, name);
+    let score = folderMatchScore(group, name);
     if (sharesCode(gcodes, name)) score = Math.max(score, 0.9);          // "444" ↔ "cse444"
     if (score > bestScore) { bestScore = score; best = d; bestSub = null; }
     // Also match the folder's EXISTING subfolders (one level deeper), so "444" lands
     // in the user's ~/Documents/CSE/444 rather than a fresh folder.
     for (const sf of (d.subfolders || [])) {
-      let ss = jaccard(group, sf);
+      let ss = Math.max(folderMatchScore(group, sf), folderMatchScore(group, `${name} ${sf}`));
       if (sharesCode(gcodes, sf)) ss = Math.max(ss, 0.95);
       if (ss > bestScore) { bestScore = ss; best = d; bestSub = sf; }
     }
   }
-  if (best && bestScore >= 0.6) {
-    if (bestSub) return { category: `${best.label}/${bestSub}`, destPath: path.join(best.path, bestSub) };
-    return { category: best.label, destPath: best.path };
+  if (!best || bestScore < minScore) return null;
+  if (bestSub) return { category: `${best.label}/${bestSub}`, destPath: path.join(best.path, bestSub), score: bestScore };
+  return { category: best.label, destPath: best.path, score: bestScore };
+}
+
+function bestExistingDestination(groups, dests) {
+  let best = null;
+  for (const g of groups || []) {
+    if (!g || !g.label) continue;
+    const found = findExistingDestForGroup(g.label, dests);
+    if (!found) continue;
+    const scored = { ...found, label: g.label, basis: g.basis, score: found.score || 0 };
+    if (!best || scored.score > best.score) best = scored;
   }
+  return best;
+}
+
+function newDocumentsDestination(label) {
+  const clean = cleanGroupLabel(label);
   // Only document-type files reach grouping (media is kept), so a new folder goes
   // under ~/Documents by default.
   return { category: `~/Documents/${clean}`, destPath: path.join(os.homedir(), 'Documents', clean) };
+}
+
+function destForGroup(group, kind, dests) {
+  const existing = findExistingDestForGroup(group, dests);
+  if (existing) return { category: existing.category, destPath: existing.destPath };
+  return newDocumentsDestination(group);
 }
 
 // Clean a model-proposed destination into a safe relative path. Allows nested
@@ -270,7 +409,7 @@ function cleanDest(raw) {
   return String(raw || '')
     .replace(/\\/g, '/')
     .split('/')
-    .map((s) => s.replace(/[:*?"<>|]/g, '').trim())
+    .map((s) => sanitizeLabel(s))
     .filter((s) => s && s !== '.' && s !== '..')
     .join('/')
     .slice(0, 120);
@@ -294,13 +433,234 @@ function toAction(item, c) {
     action,                         // 'group' | 'delete' | 'keep'
     reason: c.reason || '',
     rename: c.rename || null,        // proposed new filename (with ext), or null to keep name
-    tags: c.tags || null,            // { type, subject, basis } — for learning from corrections
+    tags: c.tags || null,            // semantic facets + basis — for learning from corrections
     excerpt: c.excerpt || '',        // content excerpt (text/OCR/labels) — for search
     ext: (item.name.includes('.') ? item.name.split('.').pop().toLowerCase() : ''),
     proposed: { action, category, destPath: c.destPath || null }, // what we suggested (vs user's final)
     include: true,                  // staged-in by default; user can deselect
     source: c.source || 'rules',
   };
+}
+
+const MIN_FILES_FOR_NEW_FOLDER = 2;
+
+function pathExists(absPath) {
+  try { return fs.existsSync(absPath); } catch { return false; }
+}
+
+function destPathForAction(a, scanRoot = '') {
+  if (!a || a.action !== 'group') return null;
+  if (a.destPath && path.isAbsolute(a.destPath)) return path.resolve(a.destPath);
+  const category = String(a.category || '').trim();
+  if (!category || category === 'Other') return null;
+  if (category.startsWith('~/')) return path.resolve(os.homedir(), category.slice(2));
+  if (path.isAbsolute(category)) return path.resolve(category);
+  if (scanRoot) return path.resolve(scanRoot, category);
+  return null;
+}
+
+function categoryForPath(absPath, scanRoot = '') {
+  const home = os.homedir();
+  const resolved = path.resolve(absPath);
+  if (resolved === home) return '~';
+  if (resolved.startsWith(home + path.sep)) {
+    return '~/' + path.relative(home, resolved).split(path.sep).join('/');
+  }
+  if (scanRoot) {
+    const root = path.resolve(scanRoot);
+    if (resolved.startsWith(root + path.sep)) {
+      return path.relative(root, resolved).split(path.sep).join('/');
+    }
+  }
+  return resolved;
+}
+
+function knownExistingFolderPaths(actions, dests = []) {
+  const out = new Set();
+  for (const d of dests || []) {
+    if (!d || !d.path) continue;
+    const base = path.resolve(d.path);
+    out.add(base);
+    for (const sf of d.subfolders || []) out.add(path.resolve(base, sf));
+  }
+  for (const a of actions || []) {
+    if (a && a.isDir && a.path) out.add(path.resolve(a.path));
+  }
+  return out;
+}
+
+function isUserDirectedMove(a) {
+  return a && a.source === 'prompt';
+}
+
+// Avoid the product smell of creating a brand-new folder for one lonely file.
+// Existing destination folders are still fine, and explicit user/manual moves
+// are left alone. If several singleton leaf folders share a new parent, collapse
+// those files up to the parent so we still create one useful grouping folder.
+function avoidSingletonNewFolders(actions, dests = [], scanRoot = '') {
+  const knownExisting = knownExistingFolderPaths(actions, dests);
+  const existsCache = new Map();
+  const isExisting = (p) => {
+    const key = path.resolve(p);
+    if (knownExisting.has(key)) return true;
+    if (!existsCache.has(key)) existsCache.set(key, pathExists(key));
+    return existsCache.get(key);
+  };
+
+  const candidates = [];
+  const descendantCounts = new Map();
+  for (const a of actions || []) {
+    if (!a || a.isDir || a.action !== 'group' || isUserDirectedMove(a)) continue;
+    const dest = destPathForAction(a, scanRoot);
+    if (!dest || isExisting(dest)) continue;
+    candidates.push({ action: a, dest });
+    let cur = dest;
+    while (cur && !isExisting(cur)) {
+      descendantCounts.set(cur, (descendantCounts.get(cur) || 0) + 1);
+      const parent = path.dirname(cur);
+      if (!parent || parent === cur) break;
+      cur = parent;
+    }
+  }
+
+  let kept = 0;
+  let collapsed = 0;
+  for (const { action, dest } of candidates) {
+    if ((descendantCounts.get(dest) || 0) >= MIN_FILES_FOR_NEW_FOLDER) continue;
+
+    let collapseTo = null;
+    let parent = path.dirname(dest);
+    while (parent && parent !== dest && !isExisting(parent)) {
+      if ((descendantCounts.get(parent) || 0) >= MIN_FILES_FOR_NEW_FOLDER) {
+        collapseTo = parent;
+        break;
+      }
+      const next = path.dirname(parent);
+      if (!next || next === parent) break;
+      parent = next;
+    }
+
+    if (collapseTo) {
+      action.category = categoryForPath(collapseTo, scanRoot);
+      action.destPath = collapseTo;
+      action.reason = 'Grouped together; skipped a one-file subfolder';
+      action.proposed = { action: action.action, category: action.category, destPath: action.destPath };
+      collapsed += 1;
+    } else {
+      action.action = 'keep';
+      action.category = 'Other';
+      action.destPath = null;
+      action.rename = null;
+      action.reason = 'Left here; new folders need at least 2 files';
+      action.include = true;
+      action.proposed = { action: 'keep', category: 'Other', destPath: null };
+      kept += 1;
+    }
+  }
+  return { kept, collapsed, changed: kept + collapsed };
+}
+
+function addPlacementGroup(out, label, basis, kind = 'document') {
+  const clean = sanitizeLabel(label);
+  if (!clean) return;
+  const preserveYear = basis.endsWith('Year') || /\b(19|20)\d{2}\b/.test(clean);
+  const canon = preserveYear ? cleanGroupLabel(clean) : canonicalGroup(clean);
+  if (!canon) return;
+  const key = `${basis}:${normGroup(canon)}`;
+  if (out.some((g) => g.key === key)) return;
+  out.push({ key, label: canon, basis, kind });
+}
+
+// Similarity at/above which two NEW-folder labels are treated as the same folder
+// (within-run convergence and the post-hoc harmonization merge). subsetScore's 0.72
+// stays below this on purpose, so a generic label isn't merged into a specific one.
+const NEW_FOLDER_MERGE_MIN = 0.8;
+
+function routeNewGroup(group, clusterDest) {
+  const key = `${group.basis}:${normGroup(group.label)}`;
+  const existing = clusterDest.get(key);
+  if (existing) return existing;
+  // Within-run consistency: if an earlier file this run already opened a new folder
+  // for a near-identical subject ("Receipts"↔"Receipt", "Machine Learning"↔
+  // "MachineLearning"), reuse it instead of forking a second folder. ai-file-sorter
+  // biases toward prior same-session assignments for exactly this reason.
+  for (const prior of clusterDest.values()) {
+    if (prior.label && folderMatchScore(group.label, prior.label) >= NEW_FOLDER_MERGE_MIN) {
+      clusterDest.set(key, prior); // alias this label onto the folder already chosen
+      return prior;
+    }
+  }
+  const dest = { ...newDocumentsDestination(group.label), label: group.label };
+  clusterDest.set(key, dest);
+  return dest;
+}
+
+function actionForPlacement(dest, tags, basis, reason) {
+  const placedTags = { ...tags, basis };
+  return {
+    category: dest.category,
+    destPath: dest.destPath,
+    reason,
+    tags: placedTags,
+  };
+}
+
+function choosePlacementForTag(item, tag = {}, dests = [], clusterDest = new Map()) {
+  const t = {
+    type: String(tag.type || '').trim(),
+    subject: String(tag.subject || '').trim(),
+    domain: String(tag.domain || '').trim(),
+    entity: String(tag.entity || '').trim(),
+    year: String(tag.year || '').trim(),
+  };
+  const tags = { ...t, basis: '' };
+  const typeFolder = (looksLikePaper(item.name) ? 'Research Papers' : null) || typeToFolder(t.type);
+  const domainFolder = domainToFolder(t.domain);
+  const bucket = subjectTypeBucket(t.type);
+
+  // Keep generic/personal media unless another facet makes it meaningfully fileable.
+  if (isMedia(t.type) && !t.subject && !t.entity && (!domainFolder || domainFolder === 'Media')) {
+    return { keep: true, reason: t.type || 'Media file', tags };
+  }
+
+  const specific = [];
+  const series = seriesBase(item.name);
+  if (t.subject) addPlacementGroup(specific, t.subject, 'subject', t.type || 'document');
+  if (domainFolder && t.year) addPlacementGroup(specific, `${domainFolder} ${t.year}`, 'domainYear', t.type || 'document');
+  if (typeFolder && t.year) addPlacementGroup(specific, `${typeFolder} ${t.year}`, 'typeYear', t.type || 'document');
+  if (t.entity && t.year) addPlacementGroup(specific, `${t.entity} ${t.year}`, 'entityYear', t.type || 'document');
+  if (t.entity) addPlacementGroup(specific, t.entity, 'entity', t.type || 'document');
+  if (series && !typeFolder) addPlacementGroup(specific, series, 'series', t.type || 'document');
+
+  const broad = [];
+  if (domainFolder) addPlacementGroup(broad, domainFolder, 'domain', t.type || 'document');
+  if (typeFolder) addPlacementGroup(broad, typeFolder, 'type', t.type || 'document');
+  if (bucket) addPlacementGroup(broad, bucket, 'bucket', t.type || 'document');
+
+  const existingSpecific = bestExistingDestination(specific, dests);
+  if (existingSpecific) {
+    return actionForPlacement(existingSpecific, tags, existingSpecific.basis, t.type || existingSpecific.label);
+  }
+
+  const existingBroad = bestExistingDestination(broad, dests);
+  if (existingBroad) {
+    return actionForPlacement(existingBroad, tags, existingBroad.basis, t.type || existingBroad.label);
+  }
+
+  // If no existing folder fits, create the most specific useful cluster first.
+  // Broad presets are only fallbacks; singleton-new-folder cleanup can still
+  // keep one-off files from creating clutter.
+  const newSpecific = specific[0];
+  if (newSpecific) {
+    return actionForPlacement(routeNewGroup(newSpecific, clusterDest), tags, newSpecific.basis, t.type || newSpecific.label);
+  }
+
+  const broadFallback = broad[0];
+  if (broadFallback) {
+    return actionForPlacement(routeNewGroup(broadFallback, clusterDest), tags, broadFallback.basis, t.type || broadFallback.label);
+  }
+
+  return { keep: true, reason: t.type || 'No clear subject', tags };
 }
 
 // Rules-only plan — instant, always works.
@@ -551,11 +911,39 @@ function applyModelResult(actions, idx, it, m) {
   }
 }
 
+// Distill a batch of document excerpts into one short factual line each (type +
+// subject), ignoring boilerplate. One model call for the whole batch keeps the extra
+// cost to ~1 call per BATCH. Returns Map<id, summary>. ai-file-sorter summarizes per
+// file before categorizing; batching is our concession to a small local model's speed.
+async function summarizeExcerpts(items, content, model, signal) {
+  const list = items.map((it) => ({ id: it.id, name: it.name, excerpt: content.get(String(it.id)) }));
+  const system = 'You distill each document into ONE short factual line: what it IS and ' +
+    'what it is ABOUT (its subject/topic). Ignore boilerplate, headers, page numbers, and ' +
+    'navigation text. No preamble. Respond ONLY with JSON.';
+  const prompt =
+    'For each item write "summary": a single concise sentence capturing the document type ' +
+    'and its subject, based on the excerpt.\n' +
+    'Return JSON: {"items":[{"id":"...","summary":"..."}]}\n\n' +
+    'Items:\n' + JSON.stringify(list);
+  const out = new Map();
+  try {
+    const data = await ollama.chatJSON({ model, system, prompt, signal });
+    const rows = (data && Array.isArray(data.items)) ? data.items : [];
+    for (const r of rows) {
+      if (!r || r.id == null) continue;
+      out.set(String(r.id), String(r.summary || '').replace(/\s+/g, ' ').trim().slice(0, MAX_SUMMARY_CHARS));
+    }
+  } catch (err) {
+    if (signal && signal.aborted) throw err; // propagate cancellation; otherwise keep raw excerpts
+  }
+  return out;
+}
+
 // Refine an existing rule-based plan with the model, one batch at a time.
 // Calls onBatch({ done, total, actions, hits }) after each batch so the UI can show
 // progress and update rows live. `shouldStop()` lets the caller cancel.
 // `cache` (optional, from src/cache.js) reuses results for unchanged files.
-async function refineWithModel(actions, dests, model, onBatch = () => {}, shouldStop = () => false, guidance = '', cache = null, ignoreCache = false, signal, concurrency = 2, rename = false, learning = null) {
+async function refineWithModel(actions, dests, model, onBatch = () => {}, shouldStop = () => false, guidance = '', cache = null, ignoreCache = false, signal, concurrency = 2, rename = false, learning = null, summarize = false) {
   const idById = new Map(actions.map((a, i) => [String(a.id), i]));
   // Only classify loose top-level FILES. Existing folders are the structure
   // (and inform destinations); we never try to reorganize them.
@@ -603,36 +991,12 @@ async function refineWithModel(actions, dests, model, onBatch = () => {}, should
     cache.set(cacheKey(it, guidance), { ...stored, _path: it.path });
   };
 
-  // Shared across all batches/workers: each subject group -> its single chosen
+  // Shared across all batches/workers: each new semantic group -> its single
   // destination. The FIRST file of a group decides it; the rest follow — so a
   // group is never split and never lands in two places.
   const clusterDest = new Map();
-  // Decide the grouping label from objective facts using GENERAL conventions:
-  //  1. type-organized type (resume, invoice, paper…) -> a per-type folder
-  //  2. a clear filename series ("Close Reading 3") -> the series base
-  //  3. a real subject (and not media) -> the subject (course/topic)
-  //  4. a subject-organized type with no subject -> its bucket ("Homework"…)
-  //  else keep.
   function placeByTag(it, t) {
-    const tags = { type: t.type, subject: t.subject, basis: '' };
-    // The only filename shortcut is a strict research-paper FORMAT (arXiv/DOI id) —
-    // everything else is the model's call, routed by its type via typeToFolder.
-    const typeFolder = (looksLikePaper(it.name) ? 'Research Papers' : null) || typeToFolder(t.type);
-    const series = seriesBase(it.name);
-    let label = '', kind = 'document';
-    if (typeFolder) { label = typeFolder; tags.basis = 'type'; }
-    // Media with no real subject is kept — a dated screenshot name is not a "series".
-    else if (isMedia(t.type) && !t.subject) return { keep: true, reason: t.type || 'Media file', tags };
-    else if (series) { label = series; kind = t.type || 'document'; tags.basis = 'series'; }
-    else if (t.subject) { label = t.subject; kind = t.type || 'document'; tags.basis = 'subject'; }
-    else { const bucket = subjectTypeBucket(t.type); if (bucket) { label = bucket; tags.basis = 'bucket'; } }
-    const canon = canonicalGroup(label);
-    if (!canon) return { keep: true, reason: t.type || 'No clear subject', tags };
-    const key = normGroup(canon);
-    if (!clusterDest.has(key)) clusterDest.set(key, destForGroup(canon, kind, dests));
-    const d = clusterDest.get(key);
-    // Reason shown in the UI, derived for free from the objective type (e.g. "invoice").
-    return { category: d.category, destPath: d.destPath, reason: t.type || canon, tags };
+    return choosePlacementForTag(it, t, dests, clusterDest);
   }
 
   // Process one batch: tag each file (streamed), then cluster-place it.
@@ -651,6 +1015,23 @@ async function refineWithModel(actions, dests, model, onBatch = () => {}, should
       } catch { /* unreadable/corrupt/locked file — classify by name only */ }
     }));
 
+    // For TAGGING, optionally distill long/noisy document excerpts into a one-line
+    // summary (one model call for the whole batch). The RAW excerpt is still stored
+    // on the action for content search — only the tag prompt sees the summary.
+    const tagContent = new Map(content);
+    if (summarize) {
+      const longOnes = batch.filter((it) => {
+        const ex = content.get(String(it.id));
+        return ex && ex.length >= SUMMARIZE_MIN_CHARS && !ex.startsWith('[image contents:');
+      });
+      if (longOnes.length) {
+        try {
+          const sums = await summarizeExcerpts(longOnes, content, model, signal);
+          for (const [id, s] of sums) if (s) tagContent.set(id, s);
+        } catch { /* aborted or model error — fall back to raw excerpts */ }
+      }
+    }
+
     const finalize = (it, m, cache = true) => {
       applyModelResult(actions, idById.get(String(it.id)), it, m);
       done += 1;
@@ -662,7 +1043,7 @@ async function refineWithModel(actions, dests, model, onBatch = () => {}, should
     const classify = async (items) => {
       if (!items.length) return;
       try {
-        const { system, prompt } = buildTagPrompt(items, guidance, content, rename);
+        const { system, prompt } = buildTagPrompt(items, guidance, tagContent, rename);
         const streamer = makeItemStreamer();
         await ollama.chatStream({
           model, system, prompt, signal,
@@ -705,7 +1086,7 @@ async function refineWithModel(actions, dests, model, onBatch = () => {}, should
       // DETERMINISTIC RESCUE: run placeByTag with empty tags so an omitted file still
       // groups via the deterministic filename rules (arXiv id / course-series / "Close
       // Reading 3"). Without this the 3B's ~30% omission rate strands course files.
-      const m = placeByTag(it, { type: '', subject: '' });
+      const m = placeByTag(it, { type: '', subject: '', domain: '', entity: '', year: '' });
       m.excerpt = content.get(String(it.id)) || '';
       if (m.keep) finalize(it, { keep: true, reason: 'Kept (not classified)', excerpt: m.excerpt }, false); // truly nameless → retry next run
       else { m.reason = 'Grouped by filename'; finalize(it, m, true); } // deterministic group → cache it
@@ -1054,12 +1435,69 @@ function firstJsonObject(text) {
   return null;
 }
 
+// Deterministic harmonization (ai-file-sorter's consistency pass, adapted): fold NEW
+// sibling folders whose names are near-duplicates ("Receipts"/"Receipt", "Invoices"/
+// "Invoice", "Machine Learning"/"MachineLearning") into one, picking the most
+// descriptive name. Only touches NEW top-level ~/Documents folders we proposed —
+// never the user's existing folders, and never collapses distinct concepts (the
+// 0.8 gate keeps "Taxes" and "Travel" apart). A safety net for anything the
+// within-run convergence in routeNewGroup didn't already unify. Returns count moved.
+function mergeSimilarNewFolders(actions) {
+  const PREFIX = '~/Documents/';
+  const byCat = new Map();
+  const cats = [];
+  for (const a of actions) {
+    if (a.action !== 'group' || a.isDir || !a.destPath) continue;
+    if (!a.category.startsWith(PREFIX)) continue;
+    const leaf = a.category.slice(PREFIX.length);
+    if (leaf.includes('/')) continue; // already nested
+    let exists = false;
+    try { exists = fs.existsSync(a.destPath); } catch { /* new */ }
+    if (exists) continue; // existing folders are the user's; never merge them away
+    if (!byCat.has(a.category)) { byCat.set(a.category, []); cats.push(a.category); }
+    byCat.get(a.category).push(a);
+  }
+  if (cats.length < 2) return 0;
+  const leafOf = (c) => c.slice(PREFIX.length);
+  // Union–find clustering by pairwise leaf-name similarity.
+  const rep = new Map(cats.map((c) => [c, c]));
+  const find = (c) => { while (rep.get(c) !== c) { rep.set(c, rep.get(rep.get(c))); c = rep.get(c); } return c; };
+  for (let i = 0; i < cats.length; i += 1) {
+    for (let j = i + 1; j < cats.length; j += 1) {
+      if (folderMatchScore(leafOf(cats[i]), leafOf(cats[j])) >= NEW_FOLDER_MERGE_MIN) {
+        const ri = find(cats[i]); const rj = find(cats[j]);
+        if (ri !== rj) rep.set(rj, ri);
+      }
+    }
+  }
+  const clusters = new Map();
+  for (const c of cats) { const r = find(c); if (!clusters.has(r)) clusters.set(r, []); clusters.get(r).push(c); }
+  let changed = 0;
+  for (const members of clusters.values()) {
+    if (members.length < 2) continue;
+    let winner = members[0]; // most descriptive leaf wins; alpha tie-break for determinism
+    for (const m of members) {
+      const dw = descriptiveness(leafOf(winner)); const dm = descriptiveness(leafOf(m));
+      if (dm > dw || (dm === dw && leafOf(m) < leafOf(winner))) winner = m;
+    }
+    const winPath = byCat.get(winner)[0].destPath;
+    for (const m of members) {
+      if (m === winner) continue;
+      for (const a of byCat.get(m)) { a.category = winner; a.destPath = winPath; changed += 1; }
+    }
+  }
+  return changed;
+}
+
 // Modifies `actions` in place. Returns { changed, folders }.
 async function consolidateFolders(actions, model, signal, onStatus = () => {}) {
   const home = os.homedir();
+  // 0) Fold near-duplicate proposed folders together first, so prefix-nesting and the
+  //    model pass below see one canonical name per subject.
+  const mergedChanged = mergeSimilarNewFolders(actions);
   // Nest folders sharing a common leading word-prefix ("322 Close Reading"/"322
   // Writing…" -> "322/…", "Taxes 2023"/"Taxes 2024" -> "Taxes/…").
-  const courseChanged = nestByCommonPrefix(actions);
+  const courseChanged = mergedChanged + nestByCommonPrefix(actions);
 
   // 2) Model pass over the remaining TOP-LEVEL new folders (skip already-nested).
   const byCat = new Map();
@@ -1088,7 +1526,7 @@ async function consolidateFolders(actions, model, signal, onStatus = () => {}) {
   let resp = '';
   try {
     await ollama.chatStream({ model, system, prompt, signal, onText: (f) => { resp = f; } });
-  } catch { return { changed: 0, folders: cats.length }; }
+  } catch { return { changed: courseChanged, folders: cats.length }; }
   const obj = firstJsonObject(resp);
   const map = obj && (obj.map || obj);
   if (!map || typeof map !== 'object') return { changed: courseChanged, folders: cats.length };
@@ -1109,4 +1547,15 @@ async function consolidateFolders(actions, model, signal, onStatus = () => {}) {
   return { changed, folders: cats.length };
 }
 
-module.exports = { planByRules, refineWithModel, applyPrompt, applyRuleRequest, destForGroup, resolveDeepDest, makeItemStreamer, consolidateFolders };
+module.exports = {
+  planByRules,
+  refineWithModel,
+  applyPrompt,
+  applyRuleRequest,
+  destForGroup,
+  resolveDeepDest,
+  makeItemStreamer,
+  consolidateFolders,
+  avoidSingletonNewFolders,
+  choosePlacementForTag,
+};

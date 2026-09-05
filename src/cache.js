@@ -6,7 +6,7 @@ const fs = require('fs');
 // routing, consolidation…). The cache is keyed on the FILE, not the logic, so
 // without a version a code improvement would keep serving stale verdicts for
 // unchanged files. A version bump auto-invalidates the whole cache on next load.
-const CACHE_VERSION = 3;
+const CACHE_VERSION = 6;
 
 // A tiny JSON-file cache of AI classification results, keyed by file identity
 // so re-scans don't re-classify unchanged files. Persisted across sessions.

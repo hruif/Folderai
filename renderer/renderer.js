@@ -19,11 +19,11 @@ let state = {
   clipboard: [],       // cut tokens, awaiting a paste (deferred move — nothing happens until paste)
 };
 
-// Build a lowercased searchable blob for an item: name, type, subject, category,
+// Build a lowercased searchable blob for an item: name, semantic tags, category,
 // reason, content excerpt, extension, size, and date (so date/keyword search works).
 function searchText(a) {
   const parts = [a.name, a.category, a.reason, a.action, a.ext, a.excerpt];
-  if (a.tags) parts.push(a.tags.type, a.tags.subject);
+  if (a.tags) parts.push(a.tags.type, a.tags.subject, a.tags.domain, a.tags.entity, a.tags.year);
   if (a.size) parts.push(fmtSize(a.size));
   if (a.mtime) {
     const d = new Date(a.mtime);
