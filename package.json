@@ -7,18 +7,30 @@
   "scripts": {
     "start": "electron .",
     "build": "scripts/build.sh inprocess",
-    "build:mas": "scripts/sign-mas.sh"
+    "build:mas": "scripts/sign-mas.sh",
+    "postinstall": "install-electron"
   },
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "@electron/osx-sign": "^2.4.0",
-    "@electron/packager": "^18.4.4",
-    "electron": "^31.0.0"
+    "@electron/osx-sign": "^2.7.1",
+    "@electron/packager": "^20.3.0",
+    "electron": "^44.9.3"
   },
   "dependencies": {
-    "mammoth": "^1.12.0",
-    "node-llama-cpp": "^3.18.1",
+    "mammoth": "^1.13.0",
+    "node-llama-cpp": "^3.22.2",
     "pdf-parse": "^2.4.5"
+  },
+  "engines": {
+    "node": ">=24.22.1 <25"
+  },
+  "overrides": {
+    "node-llama-cpp": {
+      "simple-git": "^4.0.2"
+    }
+  },
+  "allowScripts": {
+    "node-llama-cpp@3.22.2": true
   }
 }

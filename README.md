@@ -19,7 +19,7 @@ model**, and nothing is ever sent to the cloud.
 
 ## Requirements
 
-- [Node.js](https://nodejs.org) 18+
+- [Node.js](https://nodejs.org) 24.22.1 (see `.nvmrc`; run `nvm install && nvm use`)
 - [Ollama](https://ollama.com) running locally with a model pulled, e.g.:
   ```bash
   ollama pull llama3.2:3b
@@ -70,3 +70,15 @@ PATH=/opt/homebrew/bin:$PATH ./node_modules/.bin/electron scripts/capture-folder
   Compound instructions ("keep PDFs **and** delete installers") can be partially
   applied by a 3B model. This is why review is staging-first — just verify and
   fix any row inline before executing. A larger local model improves this.
+
+## Dependency security maintenance
+
+Electron 44 requires an explicit binary download; `npm ci` runs the project's
+`install-electron` postinstall step. The node-llama-cpp install script is approved
+for the locked version in `allowScripts`; review and update this approval when
+upgrading that package.
+
+The nested `simple-git` override selects 4.0.2 or later because node-llama-cpp's
+3.x dependency range still selects vulnerable simple-git 3.x releases. Its use of
+the named `simpleGit` export is compatible with 4.x. Remove the override once
+node-llama-cpp declares a patched version itself.
